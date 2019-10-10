@@ -1,11 +1,10 @@
 import csv
-import random
 import matplotlib.pyplot as plt
-
 import numpy as np
+import pvlib
 
 # CONTROL PARAMETERS & CONSTANTS
-Vt = 26e-3 # Thermal voltage
+Vt = 25e-3  # Thermal voltage
 GENMAX = 50  # Max number of generation
 NP = 50  # Population size
 F = 0.7  # Mutation factor (Values > 0.4 are recommended [1])
@@ -14,6 +13,7 @@ D = 2  # 2-Dimensional search space (a, Rs)
 # Search space according to literature ([3] Oliva et al., 2017 and [4] Yu et al. 2017)
 a_L, a_H = 1, 2  # Ideality factor boundaries
 Rs_L, Rs_H = 0, 0.5  # Series resistance Rs
+fithist = []
 # TODO: add Ns and Np for modules and to calculate thermal voltage, use Vt = 26mV for now
 
 # DATA COLLECTION
@@ -24,7 +24,7 @@ with open("data/RTC33D1000W.csv") as csv_file:
     voltages, currents = np.array([row[0] for row in data]), np.array([row[1] for row in data])
 
 # PIVOT POINT SELECTION
-p1, p2 = data[1], data[-1]  # Isc and Voc
+p1, p2 = data[0], data[-1]  # Isc and Voc
 # Maximum power point (MPP)
 powers = [a * b for a, b in zip(voltages, currents)]
 p3 = data[powers.index(max(powers))]
@@ -39,7 +39,7 @@ def evaluate(a, Rs):
     beta = p2[0] - p1[0] + (Rs * (p2[1] - p1[1]))
 
     I0 = (alpha * (p2[1] - p1[1]) + beta * (p3[1] - p1[1])) / \
-         (alpha * (np.exp((p1[0] + p1[1] * Rs) / (a * Vt)) - np.exp((p2[0] - p2[1] * Rs) / (a * Vt))) +
+         (alpha * (np.exp((p1[0] + p1[1] * Rs) / (a * Vt)) - np.exp((p2[0] + p2[1] * Rs) / (a * Vt))) +
           beta * (np.exp((p1[0] + p1[1] * Rs) / (a * Vt)) - np.exp((p3[0] + p3[1] * Rs) / (a * Vt))))
 
     Rp = ((p1[0] - p2[0]) + Rs * (p1[1] - p2[1])) / (p2[1] - p1[1] - I0 * (
@@ -47,13 +47,16 @@ def evaluate(a, Rs):
 
     Ipv = I0 * (np.exp((p1[0] + p1[1] * Rs) / (a * Vt)) - 1) + ((p1[0] + p1[1] * Rs) / Rp) + p1[1]
 
-    Ical = Ipv - (I0 * np.exp((voltages + currents * Rs) / (a * Vt)) - 1) - ((voltages + currents * Rs) / Rp)
+    # Ical = Ipv - (I0 * np.exp((voltages + (currents * Rs)) / (a * Vt)) - 1) - ((voltages + (currents * Rs)) / Rp)
 
+    # Find the current using the Lambert W function [5]
+    Ical = pvlib.pvsystem.i_from_v(Rp, Rs, a * Vt, voltages, I0, Ipv)
+    J = currents - Ical
     # Fitness penalty (J = 100) for unphysical values of Ipv, I0 and Rp
     if I0 < 0 or Rp < 0 or Ipv < 0:
         return 100, Ical
 
-    return np.sqrt(np.mean((currents - Ical) ** 2)), Ical  # RMSE
+    return np.sqrt(np.mean(J ** 2)), Ical  # RMSE
 
 
 # Population initialization
@@ -69,6 +72,7 @@ while gen <= GENMAX:
     fitness = np.asarray([evaluate(vec[0], vec[1])[0] for vec in POP])
     fittest_index = np.argmin(fitness)
     fittest = POP[fittest_index]
+    fithist.append(fitness[fittest_index])
 
     for i in range(NP):
         a, Rs = POP[i, 0], POP[i, 1]
@@ -80,10 +84,14 @@ while gen <= GENMAX:
         # Crossover
         trial = np.where(np.random.rand(2) <= CR, mutant, POP[i])  # TODO: Guarantee at least one crossover
         # Penalty
-        if not a_L <= trial[0]: trial[0] = a_L + np.random.rand() * (a_H - a_L)
-        if not a_H >= trial[0]: trial[0] = a_H - np.random.rand() * (a_H - a_L)
-        if not Rs_L <= trial[1]: trial[1] = Rs_L + np.random.rand() * (Rs_H - Rs_L)
-        if not Rs_H >= trial[1]: trial[1] = Rs_H - np.random.rand() * (Rs_H - Rs_L)
+        if not a_L <= trial[0]:
+            trial[0] = a_L + np.random.rand() * (a_H - a_L)
+        if not a_H >= trial[0]:
+            trial[0] = a_H - np.random.rand() * (a_H - a_L)
+        if not Rs_L <= trial[1]:
+            trial[1] = Rs_L + np.random.rand() * (Rs_H - Rs_L)
+        if not Rs_H >= trial[1]:
+            trial[1] = Rs_H - np.random.rand() * (Rs_H - Rs_L)
 
         # Selection
         f = evaluate(trial[0], trial[1])[0]
@@ -94,30 +102,42 @@ while gen <= GENMAX:
                 fittest_index = i
                 fittest = trial
 
-    print("Global fitness: {}".format(sum(fitness)))
     gen += 1
-    plt.plot(voltages, currents, 'bo')
-    plt.plot(voltages, evaluate(fittest[0], fittest[1])[1])
+    # plt.plot(voltages, currents, 'bo')
+    # plt.plot(voltages, evaluate(fittest[0], fittest[1])[1])
     # plt.axis([0, .6, 0, .8])
-    plt.show()
+    # plt.show()
 
-print("RESULTS:\t|a\t\t\t\t\t|Rs\nPARAMS:\t\t|{}\t|{}".format(fittest[0], fittest[1]))
+print("RESULTS:\t|a\t\t\t\t\t|Rs\n\t\t\t|{}\t|{}".format(fittest[0], fittest[1]))
+print(fitness[fittest_index])
 
 # DATA REPRESENTATION
 # I-V Characteristic
 
-plt.plot(voltages, currents, 'bo')
+print(fithist)
+plt.plot(voltages, currents, 'go')
 plt.plot(voltages, evaluate(fittest[0], fittest[1])[1])
-# plt.axis([0, .6, 0, .8])
+plt.xlabel("Voltage V(V)")
+plt.ylabel("Current I(A)")
+plt.grid()
+plt.axis([0, .6, 0, .8])
+plt.show()
+plt.figure()
+
+plt.plot(fithist, 'b')
+plt.xlabel("Generation")
+plt.ylabel("RMSE")
 plt.show()
 
 exit(0)
 """
 References
-[1]
-URL: 
-[2]
-URL: 
+[1] Price K, Storn RM, Lampinen JA. Differential evolution: a practical
+approach to global optimization. Springer Science & Business Media; 2006 Mar 4.
+[2]  Wei H, Cong J, Lingyun X, Deyun S. Extracting solar cell model parameters 
+based on chaos particle swarm algorithm. In2011 International Conference on 
+Electric Information and Control Engineering 2011 Apr 15 (pp. 398-402). IEEE.
+URL: https://ieeexplore.ieee.org/abstract/document/5777246/
 [3] Yu K, Chen X, Wang X, Wang Z. Parameters identification of photovoltaic 
 models using self-adaptive teaching-learning-based optimization. Energy 
 Conversion and Management. 2017 Aug 1;145:233-46.
@@ -126,4 +146,8 @@ URL: https://www.sciencedirect.com/science/article/pii/S0306261917305330
 cells using an improved chaotic whale optimization algorithm. 
 Applied Energy. 2017 Aug 15;200:141-54.
 URL: https://www.sciencedirect.com/science/article/pii/S0196890417303655
+[5] A. Jain, A. Kapoor, "Exact analytical solutions of the
+parameters of real solar cells using Lambert W-function", Solar
+Energy Materials and Solar Cells, 81 (2004) 269-277.
+URL: https://www.sciencedirect.com/science/article/pii/S0927024803002605
 """
