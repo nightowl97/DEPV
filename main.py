@@ -8,12 +8,13 @@ from celluloid import Camera
 
 
 #%% CONTROL PARAMETERS & CONSTANTS
-T = 51 + 273.15  # Temperature
+temp_c = 55  # Temperature in celsius
+T = temp_c + 273.15  # Temperature
 Ns = 36  # Number of cells in series
 Np = 1  # Number of cells in parallel
 Vt = sc.Boltzmann * T / sc.elementary_charge  # Thermal voltage
-GENMAX = 100  # Max number of generation
-NP = 100  # Populatii_from_von size
+GENMAX = 100  # Max number of generations
+NP = 50  # Population size
 F = 0.7  # Mutation factor (Values > 0.4 are recommended [1])
 CR = 0.8  # Crossover rate (High values recommended [2])
 D = 2  # 2-Dimensional search space (a, Rs)
@@ -25,40 +26,50 @@ avg_fit_hist = []
 
 #%% DATA COLLECTION
 # CSV file
-with open("data/STM6_4036") as csv_file:
+with open("data/STP6") as csv_file:
     csv_reader = csv.reader(csv_file, delimiter=",")
     next(csv_reader)  # Ignore the header
     data = [(float(row[0]), float(row[1])) for row in csv_reader]
     voltages, currents = np.array([row[0] for row in data]), np.array([row[1] for row in data])
     N = len(voltages)
-    xlim = min(voltages), max(voltages) + int(.2 * max(voltages))
-    ylim = min(currents), max(currents) + int(.2 * max(currents))
+    xlim = max(voltages) + 1 + int(.1 * max(voltages))
+    ylim = max(currents) + 1 + int(.1 * max(currents))
 
 
 #%% PIVOT POINT SELECTION
 p1, p2 = data[0], data[-1]  # Isc and Voc
 # Maximum power point (MPP)
 powers = [a * b for a, b in zip(voltages, currents)]
-p3 = 1
+p3 = data[powers.index(max(powers))]
 p = -1  # First MPP
 p3_fit = []  # store fittest of each p3 run
 
 
-def get_5_from_2(a, Rs, p3):
-    # Finds the 5 single diode model params from a, Rs, p1, p2 and p3
+def get_5_from_2(a, rs, mpp):
+    # Finds the 5 single diode model params from a, rs, p1, p2 and p3
     # Re-extract the 5 parameters from each solution vector by formfitting on the pivot points
-    alpha = p3[0] - p1[0] + (Rs * (p3[1] - p1[1]) * (Ns / Np))
-    beta = p2[0] - p1[0] + (Rs * (p2[1] - p1[1]) * (Ns / Np))
-    global Vt
-    loc_Vt = Ns * Vt
 
-    I0 = (alpha * (p2[1] - p1[1]) + beta * (p3[1] - p1[1])) / (Np * (alpha * (np.exp((p1[0] + p1[1] * Rs * (Ns / Np)) / (a * loc_Vt)) - np.exp((p2[0] + p2[1] * Rs * (Ns / Np)) / (a * loc_Vt))) + beta * (np.exp((p1[0] + p1[1] * Rs * (Ns / Np)) / (a * loc_Vt)) - np.exp((p3[0] + p3[1] * Rs * (Ns / Np)) / (a * loc_Vt)))))
+    v3, v2, v1 = mpp[0], p2[0], p1[0]
+    i3, i2, i1 = mpp[1], p2[1], p1[1]
+    t = temp_c + 273.15  # Temperature
+    loc_vt = (Ns * sc.Boltzmann * t) / sc.elementary_charge
 
-    Rp = ((p1[0] - p2[0]) * (Np / Ns) + Rs * (p1[1] - p2[1])) / (p2[1] - p1[1] - I0 * Np * (np.exp((p1[0] + p1[1] * Rs * (Ns / Np)) / (a * loc_Vt)) - np.exp((p2[0] + p2[1] * Rs * (Ns / Np)) / (a * loc_Vt))))
+    alpha = v3 - v1 + (rs * (i3 - i1) * (Ns / Np))
+    beta = v2 - v1 + (rs * (i2 - i1) * (Ns / Np))
 
-    Ipv = (I0 * Np * (np.exp((p1[0] + p1[1] * Rs * (Ns / Np)) / (a * loc_Vt)) - 1) + ((p1[0] + p1[1] * Rs * (Ns / Np)) / (Rp * (Ns / Np))) + p1[1]) * (1 / Np)
+    i0 = (alpha * (i2 - i1) + beta * (i3 - i1)) / (Np * (alpha * (
+            np.exp((v1 + i1 * rs * (Ns / Np)) / (a * loc_vt)) -
+            np.exp((v2 + i2 * rs * (Ns / Np)) / (a * loc_vt))) + beta * (
+            np.exp((v1 + i1 * rs * (Ns / Np)) / (a * loc_vt)) -
+            np.exp((v3 + i3 * rs * (Ns / Np)) / (a * loc_vt)))))
 
-    return Rp, Rs, a, I0, Ipv
+    rp = -((v1 - v2) * (Np / Ns) + rs * (i1 - i2)) / (i2 - i1 - i0 * Np * (
+            np.exp((v1 + i1 * rs * (Ns / Np)) / (a * loc_vt)) -
+            np.exp((v2 + i2 * rs * (Ns / Np)) / (a * loc_vt))))
+
+    ipv = (i0 * Np * np.expm1((v1 + i1 * rs * (Ns / Np)) / (a * loc_vt)) + ((v1 + i1 * rs * (Ns / Np)) / (rp * (Ns / Np))) + i1) * (1 / Np)
+
+    return rp, rs, a, i0, ipv
 
 
 # Evaluation function using the three pivot points
@@ -66,43 +77,39 @@ def evaluate(a, Rs, p3):
     # J function calculation (RMSE)
     # Find the current using the Lambert W function [5]
     Rp, Rs, a, I0, Ipv = get_5_from_2(a, Rs, p3)
-    Ical = pvlib.pvsystem.i_from_v(Rp * Ns, Rs, a * Ns * Vt, voltages, I0, Ipv)
+    Ical = pvlib.pvsystem.i_from_v(Rp * Ns / Np, Rs * Ns / Np, a * Ns * Vt, voltages, I0 * Np, Ipv * Np)
     J = currents - Ical
     # Fitness penalty (J = 100) for unphysical values of Ipv, I0 and Rp
-    if I0 < 0 or Rp < 0 or Ipv < 0:
+    if I0 < 0 or 1000 < Rp or Rp < 0 or Ipv < 0:
         return 100
 
     return np.sqrt(np.mean(J ** 2))  # RMSE
 
 
-def plot_from_2(a, Rs, p3):
+def plot_from_2(a, rseries, mpp):
     # Plots I-V curve from the two parameters a, Rs
     plt.plot(voltages, currents, 'go')
-    v = np.linspace(*xlim, 100)
-    rp, rs, a, i0, ipv = get_5_from_2(a, Rs, p3)
-    ical = pvlib.pvsystem.i_from_v(rp * Ns, rs, a * Ns * Vt, v, i0, ipv)
+    v = np.linspace(0, xlim, 100)
+    rp, rs, a, i0, ipv = get_5_from_2(a, rseries, mpp)
+    ical = pvlib.pvsystem.i_from_v(rp * Ns / Np, rs * Ns / Np, a * Ns * Vt, v, i0 * Np, ipv * Np)
     plt.plot(v, ical)
     plt.xlabel("Voltage V(V)")
     plt.ylabel("Current I(A)")
     plt.grid()
-    plt.axis([*xlim, *ylim])
+    plt.axis([0, xlim, 0, ylim])
     plt.show()
     plt.figure()
 
-
-# Population initialization
-gen = 1
 
 # fig = plt.figure()
 # camera = Camera(fig)
 while p <= 1:
 
+    gen = 1
     p3 = data[powers.index(max(powers)) + p * int(.1 * N)]  # P(-1), P(0) and P(1)
     POP = np.random.uniform([a_L, Rs_L], [a_H, Rs_H], size=(NP, 2))  # Population initialization
 
     while gen <= GENMAX:
-
-        prevPOP = POP
 
         fitness = np.asarray([evaluate(vec[0], vec[1], p3) for vec in POP])
         fittest_index = np.argmin(fitness)
@@ -140,14 +147,14 @@ while p <= 1:
                 POP[i] = trial  # Switch
                 # Movie plotting
                 # plt.plot(voltages, currents, 'go')
-                # v = np.linspace(*xlim, 100)
+                # v = np.linspace(0, xlim, 100)
                 # rp, rs, a, i0, ipv = get_5_from_2(a, Rs, p3)
-                # ical = pvlib.pvsystem.i_from_v(rp, rs, a * Vt, v, i0, ipv)
+                # ical = pvlib.pvsystem.i_from_v(rp * Ns / Np, rs * Ns / Np, a * Ns * Vt, v, i0 * Np, ipv * Np)
                 # plt.plot(v, ical)
                 # plt.xlabel("Voltage V(V)")
                 # plt.ylabel("Current I(A)")
                 # plt.grid()
-                # plt.axis([*xlim, *ylim])
+                # plt.axis([0, xlim, 0, ylim])
                 # camera.snap()
 
                 if f < fitness[fittest_index]:
@@ -164,8 +171,11 @@ while p <= 1:
 
 fittest = p3_fit[np.argmin([evaluate(*e) for e in p3_fit])]
 
+print("MPP: {}".format(fittest))
 print("RESULTS:\n(Rp:{}, Rs:{}, a:{}, I0:{}, Ipv:{})".format(*get_5_from_2(*fittest)))
 print("RMSE: {:.2E}".format(decimal.Decimal(evaluate(*fittest))))
+# print(get_5_from_2(1.5656, 0.4186e-3, (16.4, 1.542)))
+# print(evaluate(1.5656, 0.4186e-3, (16.4, 1.542)))
 
 # DATA REPRESENTATION
 plot_from_2(*fittest)

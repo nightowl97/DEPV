@@ -8,7 +8,7 @@ from celluloid import Camera
 
 
 #%% CONTROL PARAMETERS & CONSTANTS
-T = 55 + 273.15  # Temperature
+T = 51 + 273.15  # Temperature
 Ns = 36  # Number of cells in series
 Np = 1  # Number of cells in parallel
 Vt = sc.Boltzmann * T / sc.elementary_charge  # Thermal voltage
@@ -23,21 +23,21 @@ rs_l, rs_h = 0, 0.5 / Ns  # Series resistance
 a_l, a_h = 1, 2  # Ideality factor boundaries
 rp_l, rp_h = 5. / Ns, 400. / Ns  # Shunt resistance
 ipv_l, ipv_h = 0, 10  # Photo-current
-i0_l, i0_h = 0, 1e-05  # Saturation current
+i0_l, i0_h = 0, 1e-04  # Saturation current
 
 fit_hist = []  # Store fitness history
 avg_fit_hist = []
 
 #%% DATA COLLECTION
 # CSV file
-with open("data/STP6") as csv_file:
+with open("data/STM6_4036") as csv_file:
     csv_reader = csv.reader(csv_file, delimiter=",")
     next(csv_reader)  # Ignore the header
     data = [(float(row[0]), float(row[1])) for row in csv_reader]
     voltages, currents = np.array([row[0] for row in data]), np.array([row[1] for row in data])
     N = len(voltages)
-    xlim = min(voltages), max(voltages) + int(.2 * max(voltages))
-    ylim = min(currents), max(currents) + int(.2 * max(currents)) + .02
+    xlim = max(voltages) + int(.2 * max(voltages))
+    ylim = max(currents) + int(.2 * max(currents)) + .02
 
 
 #%% PIVOT POINT SELECTION
@@ -46,7 +46,7 @@ p1, p2 = data[0], data[-1]  # Isc and Voc
 powers = [a * b for a, b in zip(voltages, currents)]
 
 p3 = None
-p = 0  # First MPP
+p = 1  # First MPP
 p3_fit = []  # store fittest of each p3 run
 fittest = []
 
@@ -55,7 +55,7 @@ fittest = []
 def evaluate(rp, rs, a, i0, ipv):
     # J function calculation (RMSE)
     # Find the current using the Lambert W function [5]
-    ical = pvlib.pvsystem.i_from_v(rp * Ns, rs * Ns, a * Ns * Vt, voltages, i0, ipv)
+    ical = pvlib.pvsystem.i_from_v(rp * Ns / Np, rs * Ns / Np, a * Ns * Vt, voltages, i0 * Np, ipv * Np)
     j = currents - ical
     # Fitness penalty (J = 100) for unphysical values of Ipv, I0 and Rp
     if i0 < 0 or rp < 0 or ipv < 0:
@@ -68,32 +68,28 @@ def evaluate(rp, rs, a, i0, ipv):
 def plot_vec(sol_vec):
     # Plots I-V curve from the two parameters a, Rs
     plt.plot(voltages, currents, 'go')
-    v = np.linspace(*xlim, 100)
+    v = np.linspace(0, xlim, 100)
     rp, rs, a, i0, ipv = sol_vec
-    ical = pvlib.pvsystem.i_from_v(rp * Ns, rs * Ns, a * Ns * Vt, v, i0, ipv)
+    ical = pvlib.pvsystem.i_from_v(rp * Ns / Np, rs * Ns / Np, a * Ns * Vt, v, i0 * Np, ipv * Np)
     plt.plot(v, ical)
     plt.xlabel("Voltage V(V)")
     plt.ylabel("Current I(A)")
     plt.grid()
-    plt.axis([*xlim, *ylim])
+    plt.axis([0, xlim, 0, ylim])
     plt.show()
     plt.figure()
 
 
-# Population initialization
-gen = 1
-
-# fig = plt.figure()
+fig = plt.figure()
 # camera = Camera(fig)
-while p <= 0:
+while p <= 1:
 
+    gen = 1
     p3 = data[powers.index(max(powers)) + p * int(.1 * N)]  # P(-1), P(0) and P(1)
     POP = np.random.uniform([rp_l, rs_l, a_l, i0_l, ipv_l],
                             [rp_h, rs_h, a_h, i0_h, ipv_h], size=(NP, 5))  # Population initialization
 
     while gen <= GENMAX:
-
-        prevPOP = POP
 
         fitness = np.asarray([evaluate(*vec) for vec in POP])
         fittest_index = np.argmin(fitness)
@@ -114,7 +110,7 @@ while p <= 0:
                 trial = np.where(np.random.randint(0, D), mutant, POP[i])
             else:
                 trial = np.where(crosspoints, mutant, POP[i])
-            # Penalty
+            # Penaltynding
             # Shunt resistance
             if not rp_l <= trial[0]:
                 trial[0] = rp_l + np.random.rand() * (rp_h - rp_l)
@@ -150,7 +146,7 @@ while p <= 0:
                 # plt.plot(voltages, currents, 'go')
                 # v = np.linspace(0, xlim, 100)
                 # rp, rs, a, i0, ipv = trial
-                # ical = pvlib.pvsystem.i_from_v(rp, rs, a * Vt, v, i0, ipv)
+                # ical = pvlib.pvsystem.i_from_v(rp * Ns / Np, rs * Ns / Np, a * Ns * Vt, v, i0 * Np, ipv * Np)
                 # plt.plot(v, ical)
                 # plt.xlabel("Voltage V(V)")
                 # plt.ylabel("Current I(A)")
@@ -163,13 +159,14 @@ while p <= 0:
                     fittest = trial
 
         gen += 1
-    print("Efficiency n = {}".format(p3[0] * p3[1] * 10))
-    # animation = camera.animate()
-    # animation.save("evol{}-{}.mp4".format(p, gen))
-
     plot_vec(fittest)
     p3_fit.append((*fittest, p3))
     p += 1
+
+    # print("Efficiency n = {}".format(p3[0] * p3[1] * 10))
+    # animation = camera.animate()
+    # animation.save("evol{}-{}.mp4".format(p, gen))
+
 
 fittest = p3_fit[np.argmin([evaluate(*e[:-1]) for e in p3_fit])]
 
@@ -185,4 +182,5 @@ plt.xlabel("Generation")
 plt.ylabel("RMSE")
 plt.xlim((0, GENMAX - 1))
 plt.show()
+print(evaluate(16.7328, 0.4186e-3, 1.5656, 2.7698e-6, 1.6632))
 exit(0)

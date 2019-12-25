@@ -4,12 +4,14 @@ import scipy.constants as sc
 import numpy as np
 import pvlib
 from scipy.special import lambertw
-import decimal
 
-T = 51 + 273.15  # Temperature
+k = 1.3806503e-23
+q = 1.60217646e-19
+temp_c = 51
+T = temp_c + 273.15  # Temperature
 Ns = 36  # Number of cells in series
 Np = 1  # Number of cells in parallel
-Vt = (sc.Boltzmann * T) / sc.elementary_charge  # Thermal voltage
+Vt = (k * T) / q  # Thermal voltage
 
 
 with open("data/STM6_4036") as csv_file:
@@ -18,6 +20,8 @@ with open("data/STM6_4036") as csv_file:
     data = [(float(row[0]), float(row[1])) for row in csv_reader]
     voltages, currents = np.array([row[0] for row in data]), np.array([row[1] for row in data])
     N = len(voltages)
+    voltages, currents = np.array([row[0] for row in data]), np.array([row[1] for row in data])
+
 
 
 # def i_from_v(resist_sh, resist_series, n, voltage, sat_current, photocurrent):
@@ -51,6 +55,7 @@ rs = 0.4186e-3
 a = 1.5656
 i0 = 2.7698e-6
 ipv = 1.6632
+# rp, rs, a, i0, ipv = 25.798932693041625, 0.0004186, 1.5656, 3.0506095606306254e-06, 1.6631543240678817
 
 # RTC France
 # rp = 54.19241
@@ -60,48 +65,55 @@ ipv = 1.6632
 # ipv = 0.76072
 
 # PWP201
-# rp = 27.27729
-# rs = 0.03337
-# a = 1.35119
-# i0 = 3.48226e-6
-# ipv = 1.03051
-p3 = data[10]
+# rp = 19.37196
+# rs = 0.03471
+# a = 1.30017
+# i0 = 2.12479e-6
+# ipv = 1.03353
+
+
+p3 = data[11]
 p1 = data[0]
 p2 = data[-1]
 
 
-def get_5_from_2(a, Rs, p3):
-    # Finds the 5 single diode model params from a, Rs, p1, p2 and p3
+def get_5_from_2(a, rs, p3):
+    # Finds the 5 single diode model params from a, rs, p1, p2 and p3
     # Re-extract the 5 parameters from each solution vector by formfitting on the pivot points
-    alpha = p3[0] - p1[0] + (Rs * (p3[1] - p1[1]) * (Ns / Np))
-    beta = p2[0] - p1[0] + (Rs * (p2[1] - p1[1]) * (Ns / Np))
-    T = 51 + 273.15  # Temperature
-    loc_Vt = (Ns * sc.Boltzmann * T) / sc.elementary_charge
 
-    i0 = (alpha * (p2[1] - p1[1]) + beta * (p3[1] - p1[1])) / (Np * (alpha * (
-            np.exp((p1[0] + p1[1] * Rs * (Ns / Np)) / (a * loc_Vt)) -
-            np.exp((p2[0] + p2[1] * Rs * (Ns / Np)) / (a * loc_Vt))) + beta * (
-            np.exp((p1[0] + p1[1] * Rs * (Ns / Np)) / (a * loc_Vt)) -
-            np.exp((p3[0] + p3[1] * Rs * (Ns / Np)) / (a * loc_Vt)))))
+    v3, v2, v1 = p3[0], p2[0], p1[0]
+    i3, i2, i1 = p3[1], p2[1], p1[1]
+    t = temp_c + 273.15  # Temperature
+    loc_vt = (Ns * k * t) / q
 
-    rp = ((p1[0] - p2[0]) * (Np / Ns) + Rs * (p1[1] - p2[1])) / (p2[1] - p1[1] - i0 * Np * (
-            np.exp((p1[0] + p1[1] * Rs * (Ns / Np)) / (a * loc_Vt)) -
-            np.exp((p2[0] + p2[1] * Rs * (Ns / Np)) / (a * loc_Vt))))
+    alpha = v3 - v1 + (rs * (i3 - i1) * (Ns / Np))
+    beta = v2 - v1 + (rs * (i2 - i1) * (Ns / Np))
 
-    ipv = (i0 * Np * (np.exp((p1[0] + p1[1] * Rs * (Ns / Np)) / (a * loc_Vt)) - 1) +
-           ((p1[0] + p1[1] * Rs * (Ns / Np)) / (rp * (Ns / Np))) + p1[1]) * (1 / Np)
+    i0 = (alpha * (i2 - i1) + beta * (i3 - i1)) / (Np * (alpha * (
+            np.exp((v1 + i1 * rs * (Ns / Np)) / (a * loc_vt)) -
+            np.exp((v2 + i2 * rs * (Ns / Np)) / (a * loc_vt))) + beta * (
+            np.exp((v1 + i1 * rs * (Ns / Np)) / (a * loc_vt)) -
+            np.exp((v3 + i3 * rs * (Ns / Np)) / (a * loc_vt)))))
 
-    return rp, Rs, a, i0, ipv
+    rp = -((v1 - v2) * (Np / Ns) + rs * (i1 - i2)) / (i2 - i1 - i0 * Np * (
+            np.exp((v1 + i1 * rs * (Ns / Np)) / (a * loc_vt)) -
+            np.exp((v2 + i2 * rs * (Ns / Np)) / (a * loc_vt))))
+
+    ipv = (i0 * Np * np.expm1((v1 + i1 * rs * (Ns / Np)) / (a * loc_vt)) +
+           ((v1 + i1 * rs * (Ns / Np)) / (rp * (Ns / Np))) + i1) * (1 / Np)
+
+    return rp, rs, a, i0, ipv
 
 
+print(p3)
 print(get_5_from_2(a, rs, p3))
 
 v = np.linspace(0, 25, 100)
 # ical = i_from_v(rp * Ns, rs, a * Ns * Vt, v, i0, ipv)
-ical = pvlib.pvsystem.i_from_v(rp * Ns, rs, a * Ns * Vt, v, i0, ipv)
+ical = pvlib.pvsystem.i_from_v(rp * Ns / Np, rs * Ns / Np, a * Ns * Vt, v, i0 * Np, ipv * Np)
 plt.plot(v, ical)
 plt.plot(voltages, currents, 'go')
 plt.grid()
-plt.axis([0, 23, 0, 2])
+plt.axis([0, 25, 0, 2])
 plt.show()
 exit(0)
