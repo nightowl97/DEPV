@@ -14,7 +14,7 @@ Ns = 36  # Number of cells in series
 Np = 1  # Number of cells in parallel
 Vt = sc.Boltzmann * T / sc.elementary_charge  # Thermal voltage
 GENMAX = 100  # Max number of generations
-NP = 50  # Population size
+NP = 100  # Population size
 F = 0.7  # Mutation factor (Values > 0.4 are recommended [1])
 CR = 0.8  # Crossover rate (High values recommended [2])
 D = 2  # 2-Dimensional search space (a, Rs)
@@ -32,8 +32,8 @@ with open("data/STP6") as csv_file:
     data = [(float(row[0]), float(row[1])) for row in csv_reader]
     voltages, currents = np.array([row[0] for row in data]), np.array([row[1] for row in data])
     N = len(voltages)
-    xlim = max(voltages) + 1 + int(.1 * max(voltages))
-    ylim = max(currents) + 1 + int(.1 * max(currents))
+    xlim = max(voltages) + int(.1 * max(voltages))
+    ylim = max(currents) + int(.1 * max(currents)) + .02
 
 
 #%% PIVOT POINT SELECTION
@@ -41,7 +41,7 @@ p1, p2 = data[0], data[-1]  # Isc and Voc
 # Maximum power point (MPP)
 powers = [a * b for a, b in zip(voltages, currents)]
 p3 = data[powers.index(max(powers))]
-p = -1  # First MPP
+p = -2  # First MPP
 p3_fit = []  # store fittest of each p3 run
 
 
@@ -63,11 +63,12 @@ def get_5_from_2(a, rs, mpp):
             np.exp((v1 + i1 * rs * (Ns / Np)) / (a * loc_vt)) -
             np.exp((v3 + i3 * rs * (Ns / Np)) / (a * loc_vt)))))
 
-    rp = -((v1 - v2) * (Np / Ns) + rs * (i1 - i2)) / (i2 - i1 - i0 * Np * (
+    rp = ((v1 - v2) * (Np / Ns) + rs * (i1 - i2)) / (i2 - i1 - i0 * Np * (
             np.exp((v1 + i1 * rs * (Ns / Np)) / (a * loc_vt)) -
             np.exp((v2 + i2 * rs * (Ns / Np)) / (a * loc_vt))))
 
-    ipv = (i0 * Np * np.expm1((v1 + i1 * rs * (Ns / Np)) / (a * loc_vt)) + ((v1 + i1 * rs * (Ns / Np)) / (rp * (Ns / Np))) + i1) * (1 / Np)
+    ipv = (i0 * Np * np.expm1((v1 + i1 * rs * (Ns / Np)) / (a * loc_vt)) +
+           ((v1 + i1 * rs * (Ns / Np)) / (rp * (Ns / Np))) + i1) * (1 / Np)
 
     return rp, rs, a, i0, ipv
 
@@ -103,7 +104,7 @@ def plot_from_2(a, rseries, mpp):
 
 # fig = plt.figure()
 # camera = Camera(fig)
-while p <= 1:
+while p <= 2:
 
     gen = 1
     p3 = data[powers.index(max(powers)) + p * int(.1 * N)]  # P(-1), P(0) and P(1)
@@ -170,6 +171,7 @@ while p <= 1:
     p += 1
 
 fittest = p3_fit[np.argmin([evaluate(*e) for e in p3_fit])]
+
 
 print("MPP: {}".format(fittest))
 print("RESULTS:\n(Rp:{}, Rs:{}, a:{}, I0:{}, Ipv:{})".format(*get_5_from_2(*fittest)))

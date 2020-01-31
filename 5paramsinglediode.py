@@ -4,33 +4,34 @@ import scipy.constants as sc
 import numpy as np
 import pvlib
 import decimal
+from scipy.special import lambertw
 from celluloid import Camera
 
 
 #%% CONTROL PARAMETERS & CONSTANTS
-T = 51 + 273.15  # Temperature
+T = 55 + 273.15  # Temperature
 Ns = 36  # Number of cells in series
 Np = 1  # Number of cells in parallel
 Vt = sc.Boltzmann * T / sc.elementary_charge  # Thermal voltage
-GENMAX = 100  # Max number of generation
+GENMAX = 150  # Max number of generation
 NP = 100  # Population size
 F = 0.7  # Mutation factor (Values > 0.4 are recommended [1])
 CR = 0.8  # Crossover rate (High values recommended [2])
 D = 5  # 2-Dimensional search space
 
 # Search space
-rs_l, rs_h = 0, 0.5 / Ns  # Series resistance
+rs_l, rs_h = 0, 10 / Ns  # Series resistance
 a_l, a_h = 1, 2  # Ideality factor boundaries
 rp_l, rp_h = 5. / Ns, 400. / Ns  # Shunt resistance
 ipv_l, ipv_h = 0, 10  # Photo-current
-i0_l, i0_h = 0, 1e-04  # Saturation current
+i0_l, i0_h = 0, 1.2e-04  # Saturation current
 
 fit_hist = []  # Store fitness history
 avg_fit_hist = []
 
 #%% DATA COLLECTION
 # CSV file
-with open("data/STM6_4036") as csv_file:
+with open("data/STP6") as csv_file:
     csv_reader = csv.reader(csv_file, delimiter=",")
     next(csv_reader)  # Ignore the header
     data = [(float(row[0]), float(row[1])) for row in csv_reader]
@@ -44,18 +45,74 @@ with open("data/STM6_4036") as csv_file:
 p1, p2 = data[0], data[-1]  # Isc and Voc
 # Maximum power point (MPP)
 powers = [a * b for a, b in zip(voltages, currents)]
-
 p3 = None
-p = 1  # First MPP
+p = -1  # First MPP
 p3_fit = []  # store fittest of each p3 run
 fittest = []
+
+
+def i_from_v(resistance_shunt, resistance_series, n, voltage, saturation_current, photocurrent):
+    nNsVth = n
+    output_is_scalar = all(map(np.isscalar,
+                               [resistance_shunt, resistance_series, nNsVth,
+                                voltage, saturation_current, photocurrent]))
+
+    # This transforms Gsh=1/Rsh, including ideal Rsh=np.inf into Gsh=0., which
+    #  is generally more numerically stable
+    conductance_shunt = 1. / resistance_shunt
+
+    # Ensure that we are working with read-only views of numpy arrays
+    # Turns Series into arrays so that we don't have to worry about
+    #  multidimensional broadcasting failing
+    Gsh, Rs, a, V, I0, IL = \
+        np.broadcast_arrays(conductance_shunt, resistance_series, nNsVth,
+                            voltage, saturation_current, photocurrent)
+
+    # Intitalize output I (V might not be float64)
+    I = np.full_like(V, np.nan, dtype=np.float64)  # noqa: E741, N806
+
+    # Determine indices where 0 < Rs requires implicit model solution
+    idx_p = 0. < Rs
+
+    # Determine indices where 0 = Rs allows explicit model solution
+    idx_z = 0. == Rs
+
+    # Explicit solutions where Rs=0
+    if np.any(idx_z):
+        I[idx_z] = IL[idx_z] - I0[idx_z] * np.expm1(V[idx_z] / a[idx_z]) - \
+                   Gsh[idx_z] * V[idx_z]
+
+    # Only compute using LambertW if there are cases with Rs>0
+    # Does NOT handle possibility of overflow, github issue 298
+    if np.any(idx_p):
+        # LambertW argument, cannot be float128, may overflow to np.inf
+        argW = Rs[idx_p] * I0[idx_p] / (
+                a[idx_p] * (Rs[idx_p] * Gsh[idx_p] + 1.)) * \
+               np.exp((Rs[idx_p] * (IL[idx_p] + I0[idx_p]) + V[idx_p]) /
+                      (a[idx_p] * (Rs[idx_p] * Gsh[idx_p] + 1.)))
+
+        # lambertw typically returns complex value with zero imaginary part
+        # may overflow to np.inf
+        lambertwterm = lambertw(argW).real
+
+        # Eqn. 2 in Jain and Kapoor, 2004
+        #  I = -V/(Rs + Rsh) - (a/Rs)*lambertwterm + Rsh*(IL + I0)/(Rs + Rsh)
+        # Recast in terms of Gsh=1/Rsh for better numerical stability.
+        I[idx_p] = (IL[idx_p] + I0[idx_p] - V[idx_p] * Gsh[idx_p]) / \
+                   (Rs[idx_p] * Gsh[idx_p] + 1.) - (
+                           a[idx_p] / Rs[idx_p]) * lambertwterm
+
+    if output_is_scalar:
+        return I.item()
+    else:
+        return I
 
 
 # Evaluation function using the three pivot points
 def evaluate(rp, rs, a, i0, ipv):
     # J function calculation (RMSE)
     # Find the current using the Lambert W function [5]
-    ical = pvlib.pvsystem.i_from_v(rp * Ns / Np, rs * Ns / Np, a * Ns * Vt, voltages, i0 * Np, ipv * Np)
+    ical = i_from_v(rp * Ns / Np, rs * Ns / Np, a * Ns * Vt, voltages, i0 * Np, ipv * Np)
     j = currents - ical
     # Fitness penalty (J = 100) for unphysical values of Ipv, I0 and Rp
     if i0 < 0 or rp < 0 or ipv < 0:
@@ -70,7 +127,7 @@ def plot_vec(sol_vec):
     plt.plot(voltages, currents, 'go')
     v = np.linspace(0, xlim, 100)
     rp, rs, a, i0, ipv = sol_vec
-    ical = pvlib.pvsystem.i_from_v(rp * Ns / Np, rs * Ns / Np, a * Ns * Vt, v, i0 * Np, ipv * Np)
+    ical = i_from_v(rp * Ns / Np, rs * Ns / Np, a * Ns * Vt, v, i0 * Np, ipv * Np)
     plt.plot(v, ical)
     plt.xlabel("Voltage V(V)")
     plt.ylabel("Current I(A)")
@@ -80,7 +137,7 @@ def plot_vec(sol_vec):
     plt.figure()
 
 
-fig = plt.figure()
+# fig = plt.figure()
 # camera = Camera(fig)
 while p <= 1:
 
@@ -163,7 +220,6 @@ while p <= 1:
     p3_fit.append((*fittest, p3))
     p += 1
 
-    # print("Efficiency n = {}".format(p3[0] * p3[1] * 10))
     # animation = camera.animate()
     # animation.save("evol{}-{}.mp4".format(p, gen))
 
@@ -182,5 +238,4 @@ plt.xlabel("Generation")
 plt.ylabel("RMSE")
 plt.xlim((0, GENMAX - 1))
 plt.show()
-print(evaluate(16.7328, 0.4186e-3, 1.5656, 2.7698e-6, 1.6632))
 exit(0)

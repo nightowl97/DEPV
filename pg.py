@@ -7,14 +7,14 @@ from scipy.special import lambertw
 
 k = 1.3806503e-23
 q = 1.60217646e-19
-temp_c = 51
+temp_c = 55
 T = temp_c + 273.15  # Temperature
 Ns = 36  # Number of cells in series
 Np = 1  # Number of cells in parallel
 Vt = (k * T) / q  # Thermal voltage
 
 
-with open("data/STM6_4036") as csv_file:
+with open("data/STP6") as csv_file:
     csv_reader = csv.reader(csv_file, delimiter=",")
     next(csv_reader)  # Ignore the header
     data = [(float(row[0]), float(row[1])) for row in csv_reader]
@@ -23,38 +23,76 @@ with open("data/STM6_4036") as csv_file:
     voltages, currents = np.array([row[0] for row in data]), np.array([row[1] for row in data])
 
 
+def i_from_v(resistance_shunt, resistance_series, n, voltage, saturation_current, photocurrent):
+    nNsVth = n * Ns * Vt
+    output_is_scalar = all(map(np.isscalar,
+                               [resistance_shunt, resistance_series, nNsVth,
+                                voltage, saturation_current, photocurrent]))
 
-# def i_from_v(resist_sh, resist_series, n, voltage, sat_current, photocurrent):
-#     conductance_shunt = 1. / resist_sh
-#     I = np.zeros_like(voltage)
-#     if resist_series == 0:
-#         i = photocurrent - sat_current * np.expm1(voltage / (n * Vt)) - (voltage / resist_sh)
-#     else:
-#         argW = resist_series * sat_current * np.exp((resist_series * (photocurrent + sat_current) + v)
-#                                                 / (n * Vt * (resist_series * conductance_shunt + 1.))) \
-#                / (n * Vt * (resist_series * conductance_shunt + 1.))
-#
-#         wterm = lambertw(argW).real
-#
-#         i = (sat_current + photocurrent - conductance_shunt * v) / (resist_sh * conductance_shunt + 1.)\
-#             - (n * Vt / resist_series) * wterm
-#         print(i)
-#     return i
+    # This transforms Gsh=1/Rsh, including ideal Rsh=np.inf into Gsh=0., which
+    #  is generally more numerically stable
+    conductance_shunt = 1. / resistance_shunt
+
+    # Ensure that we are working with read-only views of numpy arrays
+    # Turns Series into arrays so that we don't have to worry about
+    #  multidimensional broadcasting failing
+    Gsh, Rs, a, V, I0, IL = \
+        np.broadcast_arrays(conductance_shunt, resistance_series, nNsVth,
+                            voltage, saturation_current, photocurrent)
+
+    # Intitalize output I (V might not be float64)
+    I = np.full_like(V, np.nan, dtype=np.float64)  # noqa: E741, N806
+
+    # Determine indices where 0 < Rs requires implicit model solution
+    idx_p = 0. < Rs
+
+    # Determine indices where 0 = Rs allows explicit model solution
+    idx_z = 0. == Rs
+
+    # Explicit solutions where Rs=0
+    if np.any(idx_z):
+        I[idx_z] = IL[idx_z] - I0[idx_z] * np.expm1(V[idx_z] / a[idx_z]) - \
+                   Gsh[idx_z] * V[idx_z]
+
+    # Only compute using LambertW if there are cases with Rs>0
+    # Does NOT handle possibility of overflow, github issue 298
+    if np.any(idx_p):
+        # LambertW argument, cannot be float128, may overflow to np.inf
+        argW = Rs[idx_p] * I0[idx_p] / (
+                a[idx_p] * (Rs[idx_p] * Gsh[idx_p] + 1.)) * \
+               np.exp((Rs[idx_p] * (IL[idx_p] + I0[idx_p]) + V[idx_p]) /
+                      (a[idx_p] * (Rs[idx_p] * Gsh[idx_p] + 1.)))
+
+        # lambertw typically returns complex value with zero imaginary part
+        # may overflow to np.inf
+        lambertwterm = lambertw(argW).real
+
+        # Eqn. 2 in Jain and Kapoor, 2004
+        #  I = -V/(Rs + Rsh) - (a/Rs)*lambertwterm + Rsh*(IL + I0)/(Rs + Rsh)
+        # Recast in terms of Gsh=1/Rsh for better numerical stability.
+        I[idx_p] = (IL[idx_p] + I0[idx_p] - V[idx_p] * Gsh[idx_p]) / \
+                   (Rs[idx_p] * Gsh[idx_p] + 1.) - (
+                           a[idx_p] / Rs[idx_p]) * lambertwterm
+
+    if output_is_scalar:
+        return I.item()
+    else:
+        return I
 
 
 # STP6
-# rp = 10.5309
-# rs = 5.3819e-3
-# a = 1.1872
-# i0 = 0.8868e-6
-# ipv = 7.4830
+rp = 10.5309
+rs = 5.3819e-3
+a = 1.1872
+i0 = 0.8868e-6
+ipv = 7.4830
 
 # STM6
-rp = 16.7328
-rs = 0.4186e-3
-a = 1.5656
-i0 = 2.7698e-6
-ipv = 1.6632
+# rp = 16.7328
+# rs = 0.4186e-3
+# a = 1.5656
+# i0 = 2.7698e-6
+# ipv = 1.6632
 # rp, rs, a, i0, ipv = 25.798932693041625, 0.0004186, 1.5656, 3.0506095606306254e-06, 1.6631543240678817
 
 # RTC France
@@ -72,7 +110,7 @@ ipv = 1.6632
 # ipv = 1.03353
 
 
-p3 = data[11]
+p3 = data[7]
 p1 = data[0]
 p2 = data[-1]
 
@@ -109,11 +147,10 @@ print(p3)
 print(get_5_from_2(a, rs, p3))
 
 v = np.linspace(0, 25, 100)
-# ical = i_from_v(rp * Ns, rs, a * Ns * Vt, v, i0, ipv)
-ical = pvlib.pvsystem.i_from_v(rp * Ns / Np, rs * Ns / Np, a * Ns * Vt, v, i0 * Np, ipv * Np)
+ical = i_from_v(rp * Ns / Np, rs * Ns / Np, a * Ns * Vt, v, i0 * Np, ipv * Np)
 plt.plot(v, ical)
 plt.plot(voltages, currents, 'go')
 plt.grid()
-plt.axis([0, 25, 0, 2])
+# plt.axis([0, 25, 0, 10])
 plt.show()
 exit(0)
