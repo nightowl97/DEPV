@@ -164,31 +164,39 @@ WindowManager:
 
 <ResultsWindow>:
     name: "results"
-    graphid: graphid
+    graphid1: graphid1
+    graphid2: graphid2
+    rp_label: rp_label
+    rs_label: rs_label
+    a_label: a_label
+    i0_label: i0_label
+    ipv_label: ipv_label
+    rmse_label: rmse_label
 
-    FloatLayout:
+
+    GridLayout:
+        cols: 2
+        id: main_results_grid
+        padding: 40
+        spacing: 10
 
         BoxLayout:
-            size_hint: 0.98, 0.6
-            pos_hint: {'center_x': 0.5, 'top': 0.99}
-            id: graphid
+            id: graphid1
 
         GridLayout:
             cols: 2
             id: result_grid
-            pos_hint: {'center_x': 0.5, 'bottom': 0.8}
-            size_hint: 0.7, 0.5
-
-            Label:
-                text: "Series Resistance: "
-            Label:
-                id: rs_label
-                text: "0"
 
             Label:
                 text: "Shunt Resistance"
             Label:
                 id: rp_label
+                text: "0"
+
+            Label:
+                text: "Series Resistance: "
+            Label:
+                id: rs_label
                 text: "0"
 
             Label:
@@ -206,7 +214,7 @@ WindowManager:
             Label:
                 text: "Photocurrent"
             Label:
-                id: "ipv_label"
+                id: ipv_label
                 text: "0"
 
             Label:
@@ -215,6 +223,9 @@ WindowManager:
                 id: rmse_label
                 text: "0"
 
+        BoxLayout:
+            id: graphid2
+
         Button:
             size_hint: 0.2, 0.1
             pos_hint: {'center_x': 0.5, 'bottom': 0.99}
@@ -222,3 +233,4 @@ WindowManager:
             on_release:
                 root.manager.current = "params"
                 root.manager.transition.direction = "right"
+                root.go_back()

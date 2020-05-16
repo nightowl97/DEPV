@@ -266,6 +266,7 @@ class DE:
         else:
             raise ValueError("Search space dimensionality must be either 5 for single or 7 for double diodes")
         print("Root Mean Squared Error:\t{0:.5E}".format(result_fitness))
+        self.final_res = result, result_fitness
         return graph
 
 
