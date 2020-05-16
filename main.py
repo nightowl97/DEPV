@@ -1,62 +1,77 @@
-from objects import *
+import os
+import matplotlib
+from kivy.app import App
+from kivy.lang import Builder
+from plyer import filechooser
+from kivy.config import Config
+from kivy.uix.screenmanager import ScreenManager, Screen
+from kivy.properties import ObjectProperty
+from objects import DE, read_csv
+from kivy.garden.matplotlib.backend_kivyagg import FigureCanvas
 
-# RTC FRANCE #######################
-# b = {'rp':  [2, 100],
-#      'rs':  [0, 1],
-#      'a':   [1, 2],
-#      'i0':  [1e-07, 1e-04],
-#      'ipv': [0, 10]
-#      }
-#
-# algo = DE(b, [*read_csv("data/RTC33D1000W.csv")], 1, 1)
-# T = 33 + 275.15
-# Vt = sc.Boltzmann * T / sc.elementary_charge  # Thermal voltage
-# algo.solve(Vt)
-# algo.plot_fit_hist()
-# algo.plot_result(Vt)
+matplotlib.use('module://kivy.garden.matplotlib.backend_kivy')
+Config.set('kivy', 'exit_on_escape', '1')
 
-# Schutten solar STP 6 #########################################
-# b = {'rp':  [2, 300],
-#      'rs':  [0, 1],
-#      'a':   [1, 2],
-#      'i0':  [1e-07, 1e-5],
-#      'ipv': [0, 10]
-#      }
-#
-# algo = DE(b, [*read_csv("data/STP6")], 36, 1)
-# T = 55 + 275.15
-# Vt = sc.Boltzmann * T / sc.elementary_charge  # Thermal voltage
-# algo.solve(Vt)
-# algo.plot_fit_hist()
-# algo.plot_result(Vt)
 
-# STM 6 Single Diode #######################
-b = {'rp':  [2, 300],
-     'rs':  [0, 1],
-     'a':   [1, 2],
-     'i0':  [1e-07, 1e-5],
-     'ipv': [0, 10]
-     }
+class ParamWindow(Screen):
+    rplower = ObjectProperty(None)
+    rpupper = ObjectProperty(None)
+    alower = ObjectProperty(None)
+    aupper = ObjectProperty(None)
+    i0lower = ObjectProperty(None)
+    i0upper = ObjectProperty(None)
+    ipvlower = ObjectProperty(None)
+    ipvupper = ObjectProperty(None)
+    rslower = ObjectProperty(None)
+    rsupper = ObjectProperty(None)
+    tempc = ObjectProperty(None)
+    series = ObjectProperty(None)
+    parallel = ObjectProperty(None)
+    path = ""
 
-algo = DE(b, [*read_csv("data/STM6_4036")], 36, 1)
-T = 51 + 275.15
-Vt = sc.Boltzmann * T / sc.elementary_charge  # Thermal voltage
-algo.solve(Vt)
-algo.plot_fit_hist()
-algo.plot_result(Vt)
+    def browse_files(self):
+        try:
+            self.path = filechooser.open_file(path=os.getcwd(), title="Pick a CSV file..",
+                                              filters=[("Comma-separated Values", "*.csv")])[0]
+        except TypeError:
+            self.path = ""
 
-# STM6 Double Dide ##########################
-b = {'rp':  [2, 300],
-     'rs':  [0, 1],
-     'a1':   [1, 2],
-     'a2':   [1, 2],
-     'i01': [1e-7, 1e-5],
-     'i02': [1e-7, 1e-5],
-     'ipv': [0, 10]
-     }
-algo = DE(b, [*read_csv("data/STM6_4036")], 36, 1)
-T = 51 + 275.15
-Vt = sc.Boltzmann * T / sc.elementary_charge  # Thermal voltage
-algo.solve(Vt)
-algo.plot_fit_hist()
-algo.plot_result(Vt)
+    def calculate(self, root_manager):
+        # Construct bounds dict
+        bounds = {'rp': [float(self.rplower.text), float(self.rpupper.text)],
+                  'rs': [float(self.rslower.text), float(self.rsupper.text)],
+                  'a':   [float(self.alower.text), float(self.aupper.text)],
+                  'i0':  [float(self.i0lower.text), float(self.i0upper.text)],
+                  'ipv': [float(self.ipvlower.text), float(self.ipvupper.text)]}
+        Ns, Np = int(self.series.text), int(self.parallel.text)
+
+        temperature = float(self.tempc.text) + 275.15
+        algo = DE(bounds, [*read_csv(self.path)], Ns, Np)
+        algo.solve(temperature)
+        f1, ax1 = algo.plot_fit_hist()
+        canvas1 = f1.canvas
+        f2, ax2 = algo.plot_result(temperature)
+        canvas2 = f2.canvas
+        root_manager.results_scrn.graphid.add_widget(canvas1)
+        root_manager.results_scrn.graphid.add_widget(canvas2)
+        print(algo.final_res)
+
+
+class ResultsWindow(Screen):
+    graphid = ObjectProperty(None)
+
+
+class WindowManager(ScreenManager):
+    results_scrn = ObjectProperty(None)
+
+
+kv = Builder.load_file("main.kv")
+
+
+class MainApp(App):
+    def build(self):
+        return kv
+
+
+if __name__ == "__main__":
+    MainApp().run()

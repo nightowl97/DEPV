@@ -1,8 +1,8 @@
 import csv
 import matplotlib.pyplot as plt
 import numpy as np
+import scipy.constants as constants
 from scipy.special import lambertw
-import scipy.constants as sc
 
 
 # Reads experimental IV data from a csv file
@@ -20,7 +20,6 @@ class DE:
     def __init__(self, bounds, ivdata, Ns, Np, popsize=100, maxiter=200, mutf=0.7, crossr=0.8):
         """
         :param bounds: Dictionary of bounds in this form {'rp': [lower, upper], 'rs': [lower, upper] ...}
-        :param dim: dimensions of search space (single diode 5, double diode 7)
         :param ivdata: [Voltages, Currents]
         """
         self.bounds = bounds  #
@@ -34,9 +33,11 @@ class DE:
         self.ivdata = ivdata
         self.Ns = Ns
         self.Np = Np
+        self.final_res = (None, None)  # Final result containing (vector, fitness)
 
     # Main differential evolution algorithm
-    def solve(self, vth):
+    def solve(self, temp):
+        vth = constants.Boltzmann * temp / constants.elementary_charge
         # Initial uniform distribution
         self.populations[0] = np.random.uniform([i[0] for i in self.bounds.values()],
                                                 [j[1] for j in self.bounds.values()], size=(self.popsize, self.dim))
@@ -202,49 +203,69 @@ class DE:
             else:
                 return current
 
+    # finds the best solution and its fitness
+    def result(self):
+        fittest_index = np.argmin(self.fitnesses[-1])
+        result = self.populations[-1][fittest_index]
+        result_fitness = self.fitnesses[-1][fittest_index]
+        assert result_fitness == np.min(self.fitnesses[-1][fittest_index])
+        return result, result_fitness
+
     # PLOTTING
+    # Plots a given vector solution
     def plot_solution(self, vector, vth):
         # Plot experimental points
+        f, gr = plt.subplots()
         voltages, currents = self.ivdata
         xlim, ylim = max(voltages), max(currents)
-        plt.plot(voltages, currents, 'go')
+        gr.plot(voltages, currents, 'go')
 
         # Calculate given solution adding 20% voltage axis length
         v = np.linspace(0, xlim + (.2 * xlim), 100)
         calc_current = DE.i_from_v(vector, v, vth, self.Ns, self.Np)
 
+        # print("Solution:")
+        # d = [print(str(i) + "\n") for i in zip(v, calc_current)]
+
         # Plotting (evil muuuhahahahaa)
-        plt.plot(v, calc_current)
-        plt.xlabel("Voltage V(V)")
-        plt.ylabel("Current I(A)")
-        plt.grid()
-        plt.axis([0, xlim + (.2 * xlim), 0, ylim + (.2 * ylim)])
+        gr.title.set_text("IV characteristic")
+        gr.plot(v, calc_current)
+        gr.set_xlabel("Voltage V(V)")
+        gr.set_ylabel("Current I(A)")
+        gr.grid()
+        gr.set_xlim((0, xlim + (.2 * xlim)))
+        gr.set_ylim((0, ylim + (.2 * ylim)))
         plt.show()
-        plt.figure()
+        return f, gr
 
     def plot_fit_hist(self):
         assert self.maxiter == len(self.fitnesses)
         averages = [np.average(generation) for generation in self.fitnesses]
-        plt.plot(averages, 'b')
-        plt.grid()
-        plt.xlabel("Generation")
-        plt.ylabel("RMSE")
-        plt.xlim((0, self.maxiter - 1))
+        # print("FITNESS HISTORY:")
+        # [print(average) for average in averages]
+        f, gr = plt.subplots()
+        gr.title.set_text("Average population fitness")
+        gr.plot(averages, 'b')
+        gr.grid()
+        gr.set_xlabel("Generation")
+        gr.set_ylabel("RMSE")
+        gr.set_xlim((0, self.maxiter - 1))
         plt.show()
-        plt.figure()
+        return f, gr
 
-    def plot_result(self, vth):
-        fittest_index = np.argmin(self.fitnesses[-1])
-        result = self.populations[-1][fittest_index]
-        result_fitness = self.fitnesses[-1][fittest_index]
-        assert result_fitness == np.min(self.fitnesses[-1][fittest_index])
-        self.plot_solution(result, vth)
+    # Plots the best solution vector
+    def plot_result(self, temp):
+        # plots the best solution
+        vth = constants.Boltzmann * temp / constants.elementary_charge
+        result, result_fitness = self.result()
+        graph = self.plot_solution(result, vth)
         if self.dim == 5:
             print("Rsh = {}\nRs = {}\na = {}\nI0 = {}\nIpv = {}".format(*result))
         elif self.dim == 7:
             print("Rsh = {}\nRs = {}\na1 = {}\na2 = {}\nI01 = {}\nI02 = {}\nIpv = {}".format(*result))
         else:
-            print("This should never execute")
-        print("Root Mean Squared Error:\t{}".format(result_fitness))
+            raise ValueError("Search space dimensionality must be either 5 for single or 7 for double diodes")
+        print("Root Mean Squared Error:\t{0:.5E}".format(result_fitness))
+        return graph
 
 

@@ -18,3 +18,10 @@ out
 gen
 *.mp4
 venv/
+
+dist
+.buildozer
+build
+Would skip repository .buildozer/android/platform/python-for-android
+assets/
+bin/
