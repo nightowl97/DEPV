@@ -2,16 +2,19 @@ from objects import *
 import scipy.constants as sc
 
 # RTC FRANCE #######################
-# b = {'rp':  [2, 100],
-#      'rs':  [0, 1],
-#      'a':   [1, 2],
-#      'i0':  [1e-07, 1e-04],
-#      'ipv': [0, 10]
-#      }
-#
-# algo = DE(b, [*read_csv("/home/youssef/PycharmProjects/DEPV/data/RTC33D1000W.csv")], 1, 1)
-# T = 33 + 275.15
-# algo.solve(T)
+b = {'rp':  [2, 100],
+     'rs':  [0, 1],
+     'a':   [1, 2],
+     'i0':  [1e-07, 1e-04],
+     'ipv': [0, 10]
+     }
+
+algo = DE(b, [*read_csv("/home/youssef/PycharmProjects/DEPV/data/RTC33D1000W.csv")], 1, 1)
+T = 33 + 275.15
+algo.solve(T)
+print(algo.final_res[1])
+algo.pso_refine(T)
+print(algo.final_res[1])
 # algo.plot_fit_hist()
 # algo.plot_result(T)
 

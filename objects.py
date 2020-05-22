@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import scipy.constants as constants
 from scipy.special import lambertw
+import pyswarms as ps
 
 
 # Reads experimental IV data from a csv file
@@ -13,6 +14,15 @@ def read_csv(filename):
         data = [(float(row[0]), float(row[1])) for row in csv_reader]
         voltages, currents = np.array([row[0] for row in data]), np.array([row[1] for row in data])
         return voltages, currents
+
+
+def pso_obj_func(x, exp_data, vth, Ns, Np):
+    if not x.shape[1] == 5:
+        raise IndexError("obj function only takes 5-dimensional input not {}.".format(x.shape[1]))
+
+    j = np.asarray([DE.objf(particle, exp_data, vth, Ns, Np) for particle in x])
+
+    return j
 
 
 class DE:
@@ -82,6 +92,33 @@ class DE:
                         self.fitnesses[gen + 1][i] = f
                     else:
                         self.populations[gen + 1][i] = self.populations[gen][i]
+
+        # Set final result
+        fittest_index = np.argmin(self.fitnesses[-1])
+        result = self.populations[-1][fittest_index]
+        result_fitness = self.fitnesses[-1][fittest_index]
+        assert result_fitness == np.min(self.fitnesses[-1][fittest_index])
+        self.final_res = result, result_fitness
+
+    def pso_refine(self, temp, n_particles=200, iters=500):
+        vth = constants.Boltzmann * temp / constants.elementary_charge
+        # Could be made more simple and flexible
+        assert self.dim == 5
+        # bounds
+        if self.final_res[0] is not None:
+            xmax = self.final_res[0] * 1.1
+            xmin = self.final_res[0] * 0.9
+            bounds = (xmin, xmax)
+        else:
+            raise RuntimeError("Run solve() on the DE object first. Aborting..")
+
+        # PSO parameters
+        kwargs = {'exp_data': self.ivdata, 'vth': vth, 'Ns': self.Ns, 'Np': self.Np}
+        options = {'c1': 2, 'c2': 2, 'w': 0.4}
+
+        optimizer = ps.single.GlobalBestPSO(n_particles=n_particles, dimensions=self.dim, options=options, bounds=bounds)
+        cost, pos = optimizer.optimize(pso_obj_func, iters=iters, **kwargs)
+        self.final_res = (pos, cost)
 
     @staticmethod
     def objf(vector, exp_data, vth, Ns, Np):
@@ -203,14 +240,6 @@ class DE:
             else:
                 return current
 
-    # finds the best solution and its fitness
-    def result(self):
-        fittest_index = np.argmin(self.fitnesses[-1])
-        result = self.populations[-1][fittest_index]
-        result_fitness = self.fitnesses[-1][fittest_index]
-        assert result_fitness == np.min(self.fitnesses[-1][fittest_index])
-        return result, result_fitness
-
     # PLOTTING
     # Plots a given vector solution
     def plot_solution(self, vector, vth):
@@ -257,7 +286,7 @@ class DE:
     def plot_result(self, temp):
         # plots the best solution
         vth = constants.Boltzmann * temp / constants.elementary_charge
-        result, result_fitness = self.result()
+        result, result_fitness = self.final_res
         graph = self.plot_solution(result, vth)
         if self.dim == 5:
             print("Rsh = {}\nRs = {}\na = {}\nI0 = {}\nIpv = {}".format(*result))
@@ -266,7 +295,6 @@ class DE:
         else:
             raise ValueError("Search space dimensionality must be either 5 for single or 7 for double diodes")
         print("Root Mean Squared Error:\t{0:.5E}".format(result_fitness))
-        self.final_res = result, result_fitness
         return graph
 
 

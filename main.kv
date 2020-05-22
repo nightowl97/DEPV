@@ -26,9 +26,25 @@ WindowManager:
 
     GridLayout:
         cols:1
-        padding: 40
+        padding: 20
         spacing: 10
         size: root.width, root.height
+
+        BoxLayout:
+            size_hint: 1, 0.1
+            orientation: "horizontal"
+
+            Label:
+                text: "Single Diode"
+            CheckBox:
+                active: True
+                group: "diode"
+
+            Label:
+                text: "Double Diode"
+            CheckBox:
+                active: False
+                group: "diode"
 
         GridLayout:
             cols: 2
