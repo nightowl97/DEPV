@@ -17,7 +17,7 @@ def read_csv(filename):
 
 class DE:
 
-    def __init__(self, bounds, ivdata, Ns, Np, popsize=100, maxiter=200, mutf=0.7, crossr=0.8, temp):
+    def __init__(self, bounds, ivdata, Ns, Np, temp, popsize=100, maxiter=200, mutf=0.7, crossr=0.8):
         """
         :param bounds: Dictionary of bounds in this form {'rp': [lower, upper], 'rs': [lower, upper] ...}
         :param ivdata: [Voltages, Currents]
@@ -214,7 +214,7 @@ class DE:
     # PLOTTING
     # Plots a given vector solution
     def plot_solution(self, vector):
-        vth =
+        vth = constants.Boltzmann * self.temp / constants.elementary_charge
         # Plot experimental points
         f, gr = plt.subplots()
         voltages, currents = self.ivdata
