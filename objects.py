@@ -27,7 +27,7 @@ def pso_obj_func(x, exp_data, vth, Ns, Np):
 
 class DE:
 
-    def __init__(self, bounds, ivdata, Ns, Np, popsize=100, maxiter=200, mutf=0.7, crossr=0.8):
+    def __init__(self, bounds, ivdata, Ns, Np, temp, popsize=100, maxiter=200, mutf=0.7, crossr=0.8):
         """
         :param bounds: Dictionary of bounds in this form {'rp': [lower, upper], 'rs': [lower, upper] ...}
         :param ivdata: [Voltages, Currents]
@@ -44,10 +44,11 @@ class DE:
         self.Ns = Ns
         self.Np = Np
         self.final_res = (None, None)  # Final result containing (vector, fitness)
+        self.temp = temp
 
     # Main differential evolution algorithm
-    def solve(self, temp):
-        vth = constants.Boltzmann * temp / constants.elementary_charge
+    def solve(self):
+        vth = constants.Boltzmann * self.temp / constants.elementary_charge
         # Initial uniform distribution
         self.populations[0] = np.random.uniform([i[0] for i in self.bounds.values()],
                                                 [j[1] for j in self.bounds.values()], size=(self.popsize, self.dim))
@@ -100,14 +101,14 @@ class DE:
         assert result_fitness == np.min(self.fitnesses[-1][fittest_index])
         self.final_res = result, result_fitness
 
-    def pso_refine(self, temp, n_particles=200, iters=500):
-        vth = constants.Boltzmann * temp / constants.elementary_charge
+    def pso_refine(self, n_particles=200, iters=500):
+        vth = constants.Boltzmann * self.temp / constants.elementary_charge
         # Could be made more simple and flexible
         assert self.dim == 5
         # bounds
         if self.final_res[0] is not None:
-            xmax = self.final_res[0] * 1.1
-            xmin = self.final_res[0] * 0.9
+            xmax = self.final_res[0] * 1.05
+            xmin = self.final_res[0] * 0.95
             bounds = (xmin, xmax)
         else:
             raise RuntimeError("Run solve() on the DE object first. Aborting..")
@@ -242,7 +243,8 @@ class DE:
 
     # PLOTTING
     # Plots a given vector solution
-    def plot_solution(self, vector, vth):
+    def plot_solution(self, vector):
+        vth = constants.Boltzmann * self.temp / constants.elementary_charge
         # Plot experimental points
         f, gr = plt.subplots()
         voltages, currents = self.ivdata
@@ -283,11 +285,10 @@ class DE:
         return f, gr
 
     # Plots the best solution vector
-    def plot_result(self, temp):
-        # plots the best solution
-        vth = constants.Boltzmann * temp / constants.elementary_charge
+    def plot_result(self):
+        vth = constants.Boltzmann * self.temp / constants.elementary_charge
         result, result_fitness = self.final_res
-        graph = self.plot_solution(result, vth)
+        graph = self.plot_solution(result)
         if self.dim == 5:
             print("Rsh = {}\nRs = {}\na = {}\nI0 = {}\nIpv = {}".format(*result))
         elif self.dim == 7:

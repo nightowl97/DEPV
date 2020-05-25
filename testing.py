@@ -4,14 +4,15 @@ import scipy.constants as sc
 import numpy as np
 import pvlib
 from scipy.special import lambertw
+from objects import DE
 
-k = 1.3806503e-23
-q = 1.60217646e-19
+k = sc.Boltzmann
+q = sc.elementary_charge
 temp_c = 55
 T = temp_c + 273.15  # Temperature
 Ns = 36  # Number of cells in series
 Np = 1  # Number of cells in parallel
-Vt = (k * T) / q  # Thermal voltage
+vth = (k * T) / q  # Thermal voltage
 
 
 with open("data/STP6") as csv_file:
@@ -109,48 +110,49 @@ ipv = 7.4830
 # i0 = 2.12479e-6
 # ipv = 1.03353
 
-
-p3 = data[7]
-p1 = data[0]
-p2 = data[-1]
-
-
-def get_5_from_2(a, rs, p3):
-    # Finds the 5 single diode model params from a, rs, p1, p2 and p3
-    # Re-extract the 5 parameters from each solution vector by formfitting on the pivot points
-
-    v3, v2, v1 = p3[0], p2[0], p1[0]
-    i3, i2, i1 = p3[1], p2[1], p1[1]
-    t = temp_c + 273.15  # Temperature
-    loc_vt = (Ns * k * t) / q
-
-    alpha = v3 - v1 + (rs * (i3 - i1) * (Ns / Np))
-    beta = v2 - v1 + (rs * (i2 - i1) * (Ns / Np))
-
-    i0 = (alpha * (i2 - i1) + beta * (i3 - i1)) / (Np * (alpha * (
-            np.exp((v1 + i1 * rs * (Ns / Np)) / (a * loc_vt)) -
-            np.exp((v2 + i2 * rs * (Ns / Np)) / (a * loc_vt))) + beta * (
-            np.exp((v1 + i1 * rs * (Ns / Np)) / (a * loc_vt)) -
-            np.exp((v3 + i3 * rs * (Ns / Np)) / (a * loc_vt)))))
-
-    rp = -((v1 - v2) * (Np / Ns) + rs * (i1 - i2)) / (i2 - i1 - i0 * Np * (
-            np.exp((v1 + i1 * rs * (Ns / Np)) / (a * loc_vt)) -
-            np.exp((v2 + i2 * rs * (Ns / Np)) / (a * loc_vt))))
-
-    ipv = (i0 * Np * np.expm1((v1 + i1 * rs * (Ns / Np)) / (a * loc_vt)) +
-           ((v1 + i1 * rs * (Ns / Np)) / (rp * (Ns / Np))) + i1) * (1 / Np)
-
-    return rp, rs, a, i0, ipv
+#
+# p3 = data[7]
+# p1 = data[0]
+# p2 = data[-1]
 
 
-print(p3)
-print(get_5_from_2(a, rs, p3))
+# def get_5_from_2(a, rs, p3):
+#     # Finds the 5 single diode model params from a, rs, p1, p2 and p3
+#     # Re-extract the 5 parameters from each solution vector by formfitting on the pivot points
+#
+#     v3, v2, v1 = p3[0], p2[0], p1[0]
+#     i3, i2, i1 = p3[1], p2[1], p1[1]
+#     t = temp_c + 273.15  # Temperature
+#     loc_vt = (Ns * k * t) / q
+#
+#     alpha = v3 - v1 + (rs * (i3 - i1) * (Ns / Np))
+#     beta = v2 - v1 + (rs * (i2 - i1) * (Ns / Np))
+#
+#     i0 = (alpha * (i2 - i1) + beta * (i3 - i1)) / (Np * (alpha * (
+#             np.exp((v1 + i1 * rs * (Ns / Np)) / (a * loc_vt)) -
+#             np.exp((v2 + i2 * rs * (Ns / Np)) / (a * loc_vt))) + beta * (
+#             np.exp((v1 + i1 * rs * (Ns / Np)) / (a * loc_vt)) -
+#             np.exp((v3 + i3 * rs * (Ns / Np)) / (a * loc_vt)))))
+#
+#     rp = -((v1 - v2) * (Np / Ns) + rs * (i1 - i2)) / (i2 - i1 - i0 * Np * (
+#             np.exp((v1 + i1 * rs * (Ns / Np)) / (a * loc_vt)) -
+#             np.exp((v2 + i2 * rs * (Ns / Np)) / (a * loc_vt))))
+#
+#     ipv = (i0 * Np * np.expm1((v1 + i1 * rs * (Ns / Np)) / (a * loc_vt)) +
+#            ((v1 + i1 * rs * (Ns / Np)) / (rp * (Ns / Np))) + i1) * (1 / Np)
+#
+#     return rp, rs, a, i0, ipv
+
+
+# print(p3)
+# print(get_5_from_2(a, rs, p3))
 
 v = np.linspace(0, 25, 100)
-ical = i_from_v(rp * Ns / Np, rs * Ns / Np, a * Ns * Vt, v, i0 * Np, ipv * Np)
-plt.plot(v, ical)
+ical = DE.i_from_v([rp, rs, a, i0, ipv], voltages, vth, Ns, Np)
+plt.plot(voltages, ical)
 plt.plot(voltages, currents, 'go')
 plt.grid()
-# plt.axis([0, 25, 0, 10])
+plt.axis([0, 20, 0, 8])
 plt.show()
+print(np.sqrt(np.mean((ical - currents) ** 2)))
 exit(0)

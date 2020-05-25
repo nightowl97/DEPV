@@ -2,51 +2,51 @@ from objects import *
 import scipy.constants as sc
 
 # RTC FRANCE #######################
+# b = {'rp':  [2, 100],
+#      'rs':  [0, 1],
+#      'a':   [1, 2],
+#      'i0':  [1e-07, 1e-04],
+#      'ipv': [0, 10]
+#      }
+#
+# T = 33 + 275.15
+# algo = DE(b, [*read_csv("/home/youssef/PycharmProjects/DEPV/data/RTC33D1000W.csv")], 1, 1, T)
+# algo.solve()
+# print(algo.final_res[1])
+# algo.pso_refine()
+# print(algo.final_res[1])
+# algo.plot_fit_hist()
+# algo.plot_result()
+
+# RTC FRANCE DOUBLE DIODE #######################
 b = {'rp':  [2, 100],
-     'rs':  [0, 1],
-     'a':   [1, 2],
-     'i0':  [1e-07, 1e-04],
+     'rs':  [0, 0.5],
+     'a1':   [1, 2],
+     'a2':   [1, 2],
+     'i01':  [1e-07, 1e-04],
+     'i02':  [1e-07, 1e-04],
      'ipv': [0, 10]
      }
 
-algo = DE(b, [*read_csv("/home/youssef/PycharmProjects/DEPV/data/RTC33D1000W.csv")], 1, 1)
 T = 33 + 275.15
-algo.solve(T)
-print(algo.final_res[1])
-algo.pso_refine(T)
-print(algo.final_res[1])
-# algo.plot_fit_hist()
-# algo.plot_result(T)
-
-# RTC FRANCE DOUBLE DIODE #######################
-# b = {'rp':  [2, 100],
-#      'rs':  [0, 1],
-#      'a1':   [1, 2],
-#      'a2':   [1, 2],
-#      'i01':  [1e-07, 1e-04],
-#      'i02':  [1e-07, 1e-04],
-#      'ipv': [0, 10]
-#      }
-#
-# algo = DE(b, [*read_csv("data/RTC33D1000W.csv")], 1, 1)
-# T = 33 + 275.15
-# algo.solve(T)
-# algo.plot_fit_hist()
-# algo.plot_result(T)
+algo = DE(b, [*read_csv("data/RTC33D1000W.csv")], 1, 1, T)
+algo.solve()
+algo.plot_fit_hist()
+algo.plot_result()
 
 # Schutten solar STP 6 SINGLE DIODE #########################################
-# b = {'rp':  [2, 15],
-#      'rs':  [0, 1],
+# b = {'rp':  [2, 15000],
+#      'rs':  [0, 0.1],
 #      'a':   [1, 2],
-#      'i0':  [1e-07, 1e-5],
+#      'i0':  [0, 2e-6],
 #      'ipv': [0, 10]
 #      }
 #
-# algo = DE(b, [*read_csv("data/STP6")], 36, 1)
 # T = 55 + 275.15
-# algo.solve(T)
+# algo = DE(b, [*read_csv("data/STP6")], 36, 1, T)
+# algo.solve()
 # algo.plot_fit_hist()
-# algo.plot_result(T)
+# algo.plot_result()
 
 # Schutten solar STP 6 DOUBLE DIODE #########################################
 # b = {'rp':  [2, 30],
