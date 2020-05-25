@@ -17,7 +17,7 @@ def read_csv(filename):
 
 class DE:
 
-    def __init__(self, bounds, ivdata, Ns, Np, popsize=100, maxiter=200, mutf=0.7, crossr=0.8):
+    def __init__(self, bounds, ivdata, Ns, Np, popsize=100, maxiter=200, mutf=0.7, crossr=0.8, temp):
         """
         :param bounds: Dictionary of bounds in this form {'rp': [lower, upper], 'rs': [lower, upper] ...}
         :param ivdata: [Voltages, Currents]
@@ -34,10 +34,11 @@ class DE:
         self.Ns = Ns
         self.Np = Np
         self.final_res = (None, None)  # Final result containing (vector, fitness)
+        self.temp = temp
 
     # Main differential evolution algorithm
-    def solve(self, temp):
-        vth = constants.Boltzmann * temp / constants.elementary_charge
+    def solve(self):
+        vth = constants.Boltzmann * self.temp / constants.elementary_charge
         # Initial uniform distribution
         self.populations[0] = np.random.uniform([i[0] for i in self.bounds.values()],
                                                 [j[1] for j in self.bounds.values()], size=(self.popsize, self.dim))
@@ -82,6 +83,13 @@ class DE:
                         self.fitnesses[gen + 1][i] = f
                     else:
                         self.populations[gen + 1][i] = self.populations[gen][i]
+
+        # setting the final result
+        fittest_index = np.argmin(self.fitnesses[-1])
+        result = self.populations[-1][fittest_index]
+        result_fitness = self.fitnesses[-1][fittest_index]
+        assert result_fitness == np.min(self.fitnesses[-1][fittest_index])
+        self.final_res = result, result_fitness
 
     @staticmethod
     def objf(vector, exp_data, vth, Ns, Np):
@@ -203,17 +211,10 @@ class DE:
             else:
                 return current
 
-    # finds the best solution and its fitness
-    def result(self):
-        fittest_index = np.argmin(self.fitnesses[-1])
-        result = self.populations[-1][fittest_index]
-        result_fitness = self.fitnesses[-1][fittest_index]
-        assert result_fitness == np.min(self.fitnesses[-1][fittest_index])
-        return result, result_fitness
-
     # PLOTTING
     # Plots a given vector solution
-    def plot_solution(self, vector, vth):
+    def plot_solution(self, vector):
+        vth =
         # Plot experimental points
         f, gr = plt.subplots()
         voltages, currents = self.ivdata
@@ -254,19 +255,19 @@ class DE:
         return f, gr
 
     # Plots the best solution vector
-    def plot_result(self, temp):
+    def plot_result(self, print_params=False):
         # plots the best solution
-        vth = constants.Boltzmann * temp / constants.elementary_charge
-        result, result_fitness = self.result()
+        vth = constants.Boltzmann * self.temp / constants.elementary_charge
+        result, result_fitness = self.final_res
         graph = self.plot_solution(result, vth)
-        if self.dim == 5:
-            print("Rsh = {}\nRs = {}\na = {}\nI0 = {}\nIpv = {}".format(*result))
-        elif self.dim == 7:
-            print("Rsh = {}\nRs = {}\na1 = {}\na2 = {}\nI01 = {}\nI02 = {}\nIpv = {}".format(*result))
-        else:
-            raise ValueError("Search space dimensionality must be either 5 for single or 7 for double diodes")
-        print("Root Mean Squared Error:\t{0:.5E}".format(result_fitness))
-        self.final_res = result, result_fitness
+        if print_params:
+            if self.dim == 5:
+                print("Rsh = {}\nRs = {}\na = {}\nI0 = {}\nIpv = {}".format(*result))
+            elif self.dim == 7:
+                print("Rsh = {}\nRs = {}\na1 = {}\na2 = {}\nI01 = {}\nI02 = {}\nIpv = {}".format(*result))
+            else:
+                raise ValueError("Search space dimensionality must be either 5 for single or 7 for double diodes")
+            print("Root Mean Squared Error:\t{0:.5E}".format(result_fitness))
         return graph
 
 

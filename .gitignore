@@ -25,3 +25,5 @@ build
 Would skip repository .buildozer/android/platform/python-for-android
 assets/
 bin/
+
+*.log
