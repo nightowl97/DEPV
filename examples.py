@@ -9,27 +9,27 @@ import scipy.constants as sc
 #      'ipv': [0, 10]
 #      }
 #
-# algo = DE(b, [*read_csv("/home/youssef/PycharmProjects/DEPV/data/RTC33D1000W.csv")], 1, 1)
 # T = 33 + 275.15
-# algo.solve(T)
+# algo = DE(b, [*read_csv("/home/youssef/PycharmProjects/DEPV/data/RTC33D1000W.csv")], 1, 1, T)
+# algo.solve()
 # algo.plot_fit_hist()
-# algo.plot_result(T)
+# algo.plot_result(print_params=True)
 
 # RTC FRANCE DOUBLE DIODE #######################
-# b = {'rp':  [2, 100],
-#      'rs':  [0, 1],
-#      'a1':   [1, 2],
-#      'a2':   [1, 2],
-#      'i01':  [1e-07, 1e-04],
-#      'i02':  [1e-07, 1e-04],
-#      'ipv': [0, 10]
-#      }
-#
-# algo = DE(b, [*read_csv("data/RTC33D1000W.csv")], 1, 1)
-# T = 33 + 275.15
-# algo.solve(T)
-# algo.plot_fit_hist()
-# algo.plot_result(T)
+b = {'rp':  [2, 100],
+     'rs':  [0, 1],
+     'a1':   [1, 2],
+     'a2':   [1, 2],
+     'i01':  [1e-07, 1e-04],
+     'i02':  [1e-07, 1e-04],
+     'ipv': [0, 10]
+     }
+
+T = 33 + 275.15
+algo = DE(b, [*read_csv("data/RTC33D1000W.csv")], 1, 1, T)
+algo.solve()
+algo.plot_fit_hist()
+algo.plot_result(print_params=True)
 
 # Schutten solar STP 6 SINGLE DIODE #########################################
 # b = {'rp':  [2, 15],

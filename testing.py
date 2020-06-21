@@ -2,25 +2,26 @@ import csv
 import matplotlib.pyplot as plt
 import scipy.constants as sc
 import numpy as np
-import pvlib
+# import pvlib
 from scipy.special import lambertw
+import objects
 
-k = 1.3806503e-23
-q = 1.60217646e-19
+k = sc.Boltzmann
+q = sc.elementary_charge
 temp_c = 55
 T = temp_c + 273.15  # Temperature
-Ns = 36  # Number of cells in series
+Ns = 1  # Number of cells in series
 Np = 1  # Number of cells in parallel
 Vt = (k * T) / q  # Thermal voltage
 
 
-with open("data/STP6") as csv_file:
-    csv_reader = csv.reader(csv_file, delimiter=",")
-    next(csv_reader)  # Ignore the header
-    data = [(float(row[0]), float(row[1])) for row in csv_reader]
-    voltages, currents = np.array([row[0] for row in data]), np.array([row[1] for row in data])
-    N = len(voltages)
-    voltages, currents = np.array([row[0] for row in data]), np.array([row[1] for row in data])
+# with open("data/STP6") as csv_file:
+#     csv_reader = csv.reader(csv_file, delimiter=",")
+#     next(csv_reader)  # Ignore the header
+#     data = [(float(row[0]), float(row[1])) for row in csv_reader]
+#     voltages, currents = np.array([row[0] for row in data]), np.array([row[1] for row in data])
+#     N = len(voltages)
+#     voltages, currents = np.array([row[0] for row in data]), np.array([row[1] for row in data])
 
 
 def i_from_v(resistance_shunt, resistance_series, n, voltage, saturation_current, photocurrent):
@@ -81,11 +82,11 @@ def i_from_v(resistance_shunt, resistance_series, n, voltage, saturation_current
 
 
 # STP6
-rp = 10.5309
-rs = 5.3819e-3
-a = 1.1872
-i0 = 0.8868e-6
-ipv = 7.4830
+# rp = 10.5309
+# rs = 5.3819e-3
+# a = 1.1872
+# i0 = 0.8868e-6
+# ipv = 7.4830
 
 # STM6
 # rp = 16.7328
@@ -109,48 +110,93 @@ ipv = 7.4830
 # i0 = 2.12479e-6
 # ipv = 1.03353
 
+#
+# p3 = data[7]
+# p1 = data[0]
+# p2 = data[-1]
+#
+#
+# def get_5_from_2(a, rs, p3):
+#     # Finds the 5 single diode model params from a, rs, p1, p2 and p3
+#     # Re-extract the 5 parameters from each solution vector by formfitting on the pivot points
+#
+#     v3, v2, v1 = p3[0], p2[0], p1[0]
+#     i3, i2, i1 = p3[1], p2[1], p1[1]
+#     t = temp_c + 273.15  # Temperature
+#     loc_vt = (Ns * k * t) / q
+#
+#     alpha = v3 - v1 + (rs * (i3 - i1) * (Ns / Np))
+#     beta = v2 - v1 + (rs * (i2 - i1) * (Ns / Np))
+#
+#     i0 = (alpha * (i2 - i1) + beta * (i3 - i1)) / (Np * (alpha * (
+#             np.exp((v1 + i1 * rs * (Ns / Np)) / (a * loc_vt)) -
+#             np.exp((v2 + i2 * rs * (Ns / Np)) / (a * loc_vt))) + beta * (
+#             np.exp((v1 + i1 * rs * (Ns / Np)) / (a * loc_vt)) -
+#             np.exp((v3 + i3 * rs * (Ns / Np)) / (a * loc_vt)))))
+#
+#     rp = -((v1 - v2) * (Np / Ns) + rs * (i1 - i2)) / (i2 - i1 - i0 * Np * (
+#             np.exp((v1 + i1 * rs * (Ns / Np)) / (a * loc_vt)) -
+#             np.exp((v2 + i2 * rs * (Ns / Np)) / (a * loc_vt))))
+#
+#     ipv = (i0 * Np * np.expm1((v1 + i1 * rs * (Ns / Np)) / (a * loc_vt)) +
+#            ((v1 + i1 * rs * (Ns / Np)) / (rp * (Ns / Np))) + i1) * (1 / Np)
+#
+#     return rp, rs, a, i0, ipv
+#
+#
+# print(p3)
+# print(get_5_from_2(a, rs, p3))
+#
+# v = np.linspace(0, 25, 100)
+# ical = i_from_v(rp * Ns / Np, rs * Ns / Np, a * Ns * Vt, v, i0 * Np, ipv * Np)
+# plt.plot(v, ical)
+# plt.plot(voltages, currents, 'go')
+# plt.grid()
+# # plt.axis([0, 25, 0, 10])
+# plt.show()
 
-p3 = data[7]
-p1 = data[0]
-p2 = data[-1]
+# rs = 0.001
+# rs2 = 0.03
+# rs3 = 0.1
+# rp = 10
+# a = 1
+# i0 = 1e-6
+# ipv = 5
+# v = np.linspace(0, 0.5, 100)
+# ical = i_from_v(rp, rs, a, v, i0, ipv)
+# ical2 = i_from_v(rp, rs2, a, v, i0, ipv)
+# ical3 = i_from_v(rp, rs3, a, v, i0, ipv)
+#
+# plt.plot(v, ical, label=r"$R_S = 1m\Omega$")
+# plt.plot(v, ical2, label=r"$R_S = 30m\Omega$")
+# plt.plot(v, ical3, label=r"$R_S = 0.1\Omega$")
+# plt.legend()
+# plt.grid()
+# plt.xlabel("V(V)")
+# plt.ylabel("I(A)")
+# plt.axis([0, 0.5, 0, 5.2])
+# plt.show()
 
+# z = np.linspace(-1/np.e, 3, 100000)
+# zm1 = np.linspace(-1/np.e, 0, 10000)
+# w0 = lambertw(z, 0).real
+# wm1 = lambertw(zm1, -1).real
+# fig, ax = plt.subplots()
+# ax.plot(z, w0, label=r"$W_0(z)$")
+# ax.plot(zm1, wm1, label=r"$W_{-1}(z)$")
+# ax.axis([-1, 4, -4, 1])
+# ax.axhline(y=0, color='k')
+# ax.axvline(x=0, color='k')
+# ax.legend()
+# plt.grid()
+# plt.show()
 
-def get_5_from_2(a, rs, p3):
-    # Finds the 5 single diode model params from a, rs, p1, p2 and p3
-    # Re-extract the 5 parameters from each solution vector by formfitting on the pivot points
-
-    v3, v2, v1 = p3[0], p2[0], p1[0]
-    i3, i2, i1 = p3[1], p2[1], p1[1]
-    t = temp_c + 273.15  # Temperature
-    loc_vt = (Ns * k * t) / q
-
-    alpha = v3 - v1 + (rs * (i3 - i1) * (Ns / Np))
-    beta = v2 - v1 + (rs * (i2 - i1) * (Ns / Np))
-
-    i0 = (alpha * (i2 - i1) + beta * (i3 - i1)) / (Np * (alpha * (
-            np.exp((v1 + i1 * rs * (Ns / Np)) / (a * loc_vt)) -
-            np.exp((v2 + i2 * rs * (Ns / Np)) / (a * loc_vt))) + beta * (
-            np.exp((v1 + i1 * rs * (Ns / Np)) / (a * loc_vt)) -
-            np.exp((v3 + i3 * rs * (Ns / Np)) / (a * loc_vt)))))
-
-    rp = -((v1 - v2) * (Np / Ns) + rs * (i1 - i2)) / (i2 - i1 - i0 * Np * (
-            np.exp((v1 + i1 * rs * (Ns / Np)) / (a * loc_vt)) -
-            np.exp((v2 + i2 * rs * (Ns / Np)) / (a * loc_vt))))
-
-    ipv = (i0 * Np * np.expm1((v1 + i1 * rs * (Ns / Np)) / (a * loc_vt)) +
-           ((v1 + i1 * rs * (Ns / Np)) / (rp * (Ns / Np))) + i1) * (1 / Np)
-
-    return rp, rs, a, i0, ipv
-
-
-print(p3)
-print(get_5_from_2(a, rs, p3))
-
-v = np.linspace(0, 25, 100)
-ical = i_from_v(rp * Ns / Np, rs * Ns / Np, a * Ns * Vt, v, i0 * Np, ipv * Np)
-plt.plot(v, ical)
-plt.plot(voltages, currents, 'go')
-plt.grid()
-# plt.axis([0, 25, 0, 10])
-plt.show()
-exit(0)
+# RAW DATA PLOTTING
+# v, i = objects.read_csv("/home/youssef/PycharmProjects/DEPV/data/RTC33D1000W.csv")
+# plt.plot(v, i * v, 'go')
+# plt.title("Points experimentaux")
+# plt.xlabel("Voltage (V)")
+# plt.ylabel("Puissance (W)")
+# plt.axis([0, 0.6, 0, 0.4])
+# plt.grid()
+# plt.show()
