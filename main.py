@@ -47,11 +47,11 @@ class ParamWindow(Screen):
         Ns, Np = int(self.series.text), int(self.parallel.text)
 
         temperature = float(self.tempc.text) + 275.15
-        algo = DE(bounds, [*read_csv(self.path)], Ns, Np)
-        algo.solve(temperature)
+        algo = DE(bounds, [*read_csv(self.path)], Ns, Np, temperature)
+        algo.solve()
         f1, ax1 = algo.plot_fit_hist()
         canvas1 = f1.canvas
-        f2, ax2 = algo.plot_result(temperature)
+        f2, ax2 = algo.plot_result()
         canvas2 = f2.canvas
         root_manager.results_scrn.graphid1.add_widget(canvas1)
         root_manager.results_scrn.graphid2.add_widget(canvas2)

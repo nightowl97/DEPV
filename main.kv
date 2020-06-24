@@ -24,6 +24,13 @@ WindowManager:
     series: series
     parallel: parallel
 
+    canvas.before:
+        Color:
+            rgba: 0.5, 0.5, 0.5, 1
+        Rectangle:
+            pos: self.pos
+            size: self.size
+
     GridLayout:
         cols:1
         padding: 40
@@ -155,12 +162,25 @@ WindowManager:
                 text: "Select File"
                 on_release: root.browse_files()
 
-        Button:
-            text:"Calculate"
-            on_release:
-                root.manager.current = "results"
-                root.manager.transition.direction = "left"
-                root.calculate(root.manager)
+        GridLayout:
+            cols:3
+
+            Label:
+            Label:
+            Label:
+            Label:
+
+            Button:
+                text:"Calculate"
+                on_release:
+                    root.manager.current = "results"
+                    root.manager.transition.direction = "left"
+                    root.calculate(root.manager)
+
+            Label:
+            Label:
+            Label:
+            Label:
 
 <ResultsWindow>:
     name: "results"
@@ -172,6 +192,13 @@ WindowManager:
     i0_label: i0_label
     ipv_label: ipv_label
     rmse_label: rmse_label
+
+    canvas.before:
+        Color:
+            rgba: 0.5, 0.5, 0.5, 1
+        Rectangle:
+            pos: self.pos
+            size: self.size
 
 
     GridLayout:

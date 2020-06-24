@@ -21,6 +21,13 @@ class DE:
         """
         :param bounds: Dictionary of bounds in this form {'rp': [lower, upper], 'rs': [lower, upper] ...}
         :param ivdata: [Voltages, Currents]
+        :param Ns: Number of cells in series
+        :param Np: Number of cells in parallel
+        :param temp: Temperature
+        :param popsize: Population size
+        :param maxiter: Maximum number of generations
+        :param mutf: Mutation Factor F
+        :param crossr: Crossover Rate CR
         """
         self.bounds = bounds  #
         self.popsize = popsize
@@ -46,7 +53,7 @@ class DE:
             # Initial fitness
             self.fitnesses[gen] = [DE.objf(vec, self.ivdata, vth, self.Ns, self.Np) for vec in self.populations[gen]]
 
-            fittest_index = np.argmin(self.fitnesses[gen])
+            fittest_index = int(np.argmin(self.fitnesses[gen]))
             fittest = self.populations[gen][fittest_index]
 
             # Iterate over population
@@ -74,18 +81,18 @@ class DE:
                         trial[j] = upper - np.random.rand() * (upper - lower)
 
                 # Selection
-                f = self.objf(trial, self.ivdata, vth, self.Ns, self.Np)
+                trialf = self.objf(trial, self.ivdata, vth, self.Ns, self.Np)
 
                 if gen + 1 < self.maxiter:
-                    if f < self.fitnesses[gen][i]:
+                    if trialf < self.fitnesses[gen][i]:
                         #  Select for next generation
                         self.populations[gen + 1][i] = trial
-                        self.fitnesses[gen + 1][i] = f
+                        self.fitnesses[gen + 1][i] = trialf
                     else:
                         self.populations[gen + 1][i] = self.populations[gen][i]
 
         # setting the final result
-        fittest_index = np.argmin(self.fitnesses[-1])
+        fittest_index = int(np.argmin(self.fitnesses[-1]))
         result = self.populations[-1][fittest_index]
         result_fitness = self.fitnesses[-1][fittest_index]
         assert result_fitness == np.min(self.fitnesses[-1][fittest_index])
@@ -162,10 +169,11 @@ class DE:
         # Double diode
         if len(vector) == 7:
             resistance_shunt, resistance_series, n1, n2, saturation_current1, saturation_current2, photocurrent = vector
-            Gsh, Rs, a1, a2, V, I01, I02, IL = np.broadcast_arrays(conductance_shunt, resistance_series, n1 * Ns * vth,
-                                                        n2 * Ns * vth, v, saturation_current1 * Np,
-                                                        saturation_current2 * Np, photocurrent * Np)
-            # Intitalize output I (V might not be float64)
+            Gsh, Rs, a1, a2, V, I01, I02, IL = np.broadcast_arrays(conductance_shunt, resistance_series,
+                                                                   n1 * Ns * vth, n2 * Ns * vth, v,
+                                                                   saturation_current1 * Np, saturation_current2 * Np,
+                                                                   photocurrent * Np)
+            # Initialize output I (V might not be float64)
             current = np.full_like(V, np.nan, dtype=np.float64)
             # Determine indices where 0 < Rs requires implicit model solution
             idx_p = 0. < Rs
@@ -219,7 +227,7 @@ class DE:
         f, gr = plt.subplots()
         voltages, currents = self.ivdata
         xlim, ylim = max(voltages), max(currents)
-        gr.plot(voltages, currents, 'go')
+        gr.plot(voltages, currents, 'go', label="Données expérimentales")
 
         # Calculate given solution adding 20% voltage axis length
         v = np.linspace(0, xlim + (.2 * xlim), 100)
@@ -229,11 +237,15 @@ class DE:
         # d = [print(str(i) + "\n") for i in zip(v, calc_current)]
 
         # Plotting (evil muuuhahahahaa)
-        gr.title.set_text("IV characteristic")
-        gr.plot(v, calc_current)
+        if self.dim == 7:
+            gr.title.set_text("Caractéristique IV (double diode)")
+        else:
+            gr.title.set_text("Caractéristique IV (simple diode)")
+        gr.plot(v, calc_current, label="Évolution Différentielle")
         gr.set_xlabel("Voltage V(V)")
-        gr.set_ylabel("Current I(A)")
+        gr.set_ylabel("Courant I(A)")
         gr.grid()
+        gr.legend()
         gr.set_xlim((0, xlim + (.2 * xlim)))
         gr.set_ylim((0, ylim + (.2 * ylim)))
         plt.show()
@@ -245,7 +257,10 @@ class DE:
         # print("FITNESS HISTORY:")
         # [print(average) for average in averages]
         f, gr = plt.subplots()
-        gr.title.set_text("Average population fitness")
+        if self.dim == 7:
+            gr.title.set_text("Average population fitness (double diode)")
+        else:
+            gr.title.set_text("Average population fitness (simple diode)")
         gr.plot(averages, 'b')
         gr.grid()
         gr.set_xlabel("Generation")
@@ -259,7 +274,7 @@ class DE:
         # plots the best solution
         vth = constants.Boltzmann * self.temp / constants.elementary_charge
         result, result_fitness = self.final_res
-        graph = self.plot_solution(result, vth)
+        graph = self.plot_solution(result)
         if print_params:
             if self.dim == 5:
                 print("Rsh = {}\nRs = {}\na = {}\nI0 = {}\nIpv = {}".format(*result))

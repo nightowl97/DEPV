@@ -2,51 +2,21 @@ from objects import *
 import scipy.constants as sc
 
 # RTC FRANCE #######################
-# b = {'rp':  [2, 100],
-#      'rs':  [0, 1],
-#      'a':   [1, 2],
-#      'i0':  [1e-07, 1e-04],
-#      'ipv': [0, 10]
-#      }
-#
-# T = 33 + 275.15
-# algo = DE(b, [*read_csv("/home/youssef/PycharmProjects/DEPV/data/RTC33D1000W.csv")], 1, 1, T)
-# algo.solve()
-# algo.plot_fit_hist()
-# algo.plot_result(print_params=True)
-
-# RTC FRANCE DOUBLE DIODE #######################
 b = {'rp':  [2, 100],
      'rs':  [0, 1],
-     'a1':   [1, 2],
-     'a2':   [1, 2],
-     'i01':  [1e-07, 1e-04],
-     'i02':  [1e-07, 1e-04],
+     'a':   [1, 2],
+     'i0':  [1e-07, 1e-04],
      'ipv': [0, 10]
      }
-
+exp = read_csv("data/RTC33D1000W.csv")
 T = 33 + 275.15
-algo = DE(b, [*read_csv("data/RTC33D1000W.csv")], 1, 1, T)
+algo = DE(b, exp, 1, 1, T, mutf=0.8, crossr=1)
 algo.solve()
 algo.plot_fit_hist()
 algo.plot_result(print_params=True)
 
-# Schutten solar STP 6 SINGLE DIODE #########################################
-# b = {'rp':  [2, 15],
-#      'rs':  [0, 1],
-#      'a':   [1, 2],
-#      'i0':  [1e-07, 1e-5],
-#      'ipv': [0, 10]
-#      }
-#
-# algo = DE(b, [*read_csv("data/STP6")], 36, 1)
-# T = 55 + 275.15
-# algo.solve(T)
-# algo.plot_fit_hist()
-# algo.plot_result(T)
-
-# Schutten solar STP 6 DOUBLE DIODE #########################################
-# b = {'rp':  [2, 30],
+# RTC FRANCE DOUBLE DIODE #######################
+# b = {'rp':  [2, 100],
 #      'rs':  [0, 1],
 #      'a1':   [1, 2],
 #      'a2':   [1, 2],
@@ -55,54 +25,84 @@ algo.plot_result(print_params=True)
 #      'ipv': [0, 10]
 #      }
 #
-# algo = DE(b, [*read_csv("data/STP6")], 36, 1, maxiter=400)
-# T = 55 + 275.15
-# algo.solve(T)
+# T = 33 + 275.15
+# algo = DE(b, [*read_csv("data/RTC33D1000W.csv")], 1, 1, T)
+# algo.solve()
 # algo.plot_fit_hist()
-# algo.plot_result(T)
+# algo.plot_result(print_params=True)
+
+# Schutten solar STP 6 SINGLE DIODE #########################################
+# b = {'rp':  [5, 20],
+#      'rs':  [0, 0.1],
+#      'a':   [1, 2],
+#      'i0':  [1e-07, 2e-6],
+#      'ipv': [0, 10]
+#      }
+#
+# T = 55 + 275.15
+# algo = DE(b, [*read_csv("data/STP6")], 36, 1, T)
+# algo.solve()
+# algo.plot_fit_hist()
+# algo.plot_result(print_params=True)
+
+# Schutten solar STP 6 DOUBLE DIODE #########################################
+# b = {'rp':   [2, 15],
+#      'rs':   [0, 1],
+#      'a1':   [1, 2],
+#      'a2':   [1, 2],
+#      'i01':  [1e-07, 1e-04],
+#      'i02':  [1e-07, 1e-04],
+#      'ipv':  [0, 10]
+#      }
+#
+# T = 55 + 275.15
+# algo = DE(b, [*read_csv("data/STP6")], 36, 1, T)
+# algo.solve()
+# algo.plot_fit_hist()
+# algo.plot_result(print_params=True)
 
 
 # STM 6 Single Diode #######################
-# b = {'rp':  [2, 300],
+# b = {'rp':  [2, 30],
 #      'rs':  [0, 1],
 #      'a':   [1, 2],
 #      'i0':  [1e-07, 1e-5],
 #      'ipv': [0, 10]
 #      }
 #
-# algo = DE(b, [*read_csv("data/STM6_4036")], 36, 1)
 # T = 51 + 275.15
-# algo.solve(T)
+# algo = DE(b, [*read_csv("data/STM6_4036")], 36, 1, T)
+# algo.solve()
 # algo.plot_fit_hist()
-# algo.plot_result(T)
+# algo.plot_result(print_params=True)
 #
 # STM6 Double Diode ##########################
-# b = {'rp':  [2, 300],
+# b = {'rp':  [2, 1000],
 #      'rs':  [0, 1],
 #      'a1':  [1, 2],
 #      'a2':  [1, 2],
-#      'i01': [1e-7, 1e-5],
-#      'i02': [1e-7, 1e-5],
+#      'i01': [0, 1e-4],
+#      'i02': [0, 1e-4],
 #      'ipv': [0, 10]
 #      }
-# algo = DE(b, [*read_csv("data/STM6_4036")], 36, 1)
 # T = 51 + 275.15
-# algo.solve(T)
+# algo = DE(b, [*read_csv("data/STM6_4036")], 36, 1, T, popsize=400)
+# algo.solve()
 # algo.plot_fit_hist()
-# algo.plot_result(T)
+# algo.plot_result(print_params=True)
 
 # # Photowatt PWP SINGLE DIODE ##########################
-# b = {'rp':  [2, 100],
-#      'rs':  [0, 1],
-#      'a':  [1, 2],
-#      'i0': [1e-7, 1e-5],
-#      'ipv': [0, 5]
+# b = {'rp':     [2, 100],
+#      'rs':     [0, 1],
+#      'a':      [1, 2],
+#      'i0':     [1e-7, 1e-5],
+#      'ipv':    [0, 5]
 #      }
-# algo = DE(b, [*read_csv("data/PWP")], 36, 1)
 # T = 45 + 275.15
-# algo.solve(T)
+# algo = DE(b, [*read_csv("data/PWP")], 36, 1, T)
+# algo.solve()
 # algo.plot_fit_hist()
-# algo.plot_result(T)
+# algo.plot_result(print_params=True)
 
 # # Photowatt PWP DOUBLE DIODE ##########################
 # b = {'rp':  [2, 100],
@@ -113,11 +113,11 @@ algo.plot_result(print_params=True)
 #      'i02': [1e-7, 1e-5],
 #      'ipv': [0, 5]
 #      }
-# algo = DE(b, [*read_csv("data/PWP")], 36, 1)
 # T = 45 + 275.15
-# algo.solve(T)
+# algo = DE(b, [*read_csv("data/PWP")], 36, 1, T)
+# algo.solve()
 # algo.plot_fit_hist()
-# algo.plot_result(T)
+# algo.plot_result(print_params=True)
 
 # SiCell ############################33
 # b = {'rp':  [2, 100],
@@ -160,3 +160,34 @@ algo.plot_result(print_params=True)
 # algo.solve(T)
 # algo.plot_fit_hist()
 # algo.plot_result(T)
+
+# ST40 Thin Film single
+# b = {'rp':  [2, 50],
+#      'rs':  [0, 0.1],
+#      'a':   [1, 2],
+#      'i0':  [1e-06, 1e-04],
+#      'ipv': [0, 1]
+#      }
+#
+# T = 25 + 275.15
+# algo = DE(b, [*read_csv("/home/youssef/PycharmProjects/DEPV/data/st40/200w.csv")], 42, 1, T, maxiter=50)
+# algo.solve()
+# algo.plot_fit_hist()
+# algo.plot_result(print_params=True)
+
+# ST40 Thin Film double
+#
+# b = {'rp':  [2, 50],
+#      'rs':  [0, 0.1],
+#      'a1':  [1, 2],
+#      'a2':  [1, 2],
+#      'i02': [1e-07, 1e-04],
+#      'i0':  [1e-07, 1e-04],
+#      'ipv': [0, 1]
+#      }
+#
+# T = 25 + 275.15
+# algo = DE(b, [*read_csv("/home/youssef/PycharmProjects/DEPV/data/st40/200w.csv")], 42, 1, T)
+# algo.solve()
+# algo.plot_fit_hist()
+# algo.plot_result(print_params=True)
